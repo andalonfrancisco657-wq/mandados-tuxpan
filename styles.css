@@ -24,3 +24,7 @@ nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-t
 nav button{flex:1;border:0;background:none;padding:10px 4px;font-size:12px;color:#64748b;font-weight:600}nav button b{display:block;font-size:20px}nav button.on{color:#0f766e}
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 16px;border-radius:12px;display:none;font-size:14px}
 .stat{text-align:center}.stat b{display:block;font-size:22px;color:#0f766e}.warn{background:#fef3c7;color:#92400e;padding:8px;border-radius:10px;font-size:12px;margin-top:8px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:10px 0}.chip{white-space:nowrap;padding:6px 12px;border-radius:99px;background:#e2e8f0;font-size:13px;font-weight:600;cursor:pointer}.chip.on{background:#0f766e;color:#fff}
+.store{cursor:pointer}.prod{margin:0;text-align:center;padding:10px}.prod b{font-size:14px;display:block}.emo{font-size:38px}.price{color:#0f766e;font-weight:800;margin:4px 0}
+.qty{display:inline-flex;align-items:center;gap:10px}.qty button{width:32px;height:32px;border-radius:50%;border:0;background:#0f766e;color:#fff;font-size:18px;font-weight:800}
+.cartbar{position:sticky;bottom:72px;margin-top:10px}.line{padding:8px 0;border-bottom:1px solid #f1f5f9}.sw{margin:0;font-size:12px;display:flex;gap:4px;align-items:center}.sw input{width:auto}
