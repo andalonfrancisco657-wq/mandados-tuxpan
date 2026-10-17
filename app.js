@@ -28,7 +28,7 @@ function seed(){const t=Date.now();return{
 let DB=JSON.parse(localStorage.getItem('mandados')||'null');
 if(!DB||DB.v!==SV){const n=seed();if(DB){n.cfg=DB.cfg||n.cfg;n.reps=DB.reps||n.reps;const old=(DB.orders||[]).filter(o=>!o.ej&&o.det);n.orders=n.orders.concat(old);n.mine=n.mine.concat((DB.mine||[]).filter(id=>old.some(o=>o.id===id)))}DB=n}
 const save=()=>localStorage.setItem('mandados',JSON.stringify(DB));save();
-let edSt=null;let role=localStorage.getItem('rol')||'cliente', view='home', sel=null, track=null, myRep=DB.reps[0];
+let edSt=null;let role=window.APP_ROLE||'cliente', view='home', sel=null, track=null, myRep=DB.reps[0];
 const toast=m=>{const e=$('#toast');e.textContent=m;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',2200)};
 const steps=o=>o.cat==='paquetes'?STP:ST;
 const stName=o=>{const s=steps(o);return s[Math.min(o.st,s.length-1)]};
@@ -45,7 +45,7 @@ const card=(o,extra='')=>`<div class="card"><div class="row"><b>${CATS[o.cat][0]
 function tabs(){const T={cliente:[['home','🏠','Inicio'],['nuevo','➕','Pedir'],['hist','📋','Mis pedidos']],repartidor:[['home','📦','Pedidos']],admin:[['home','📊','Resumen'],['todos','📋','Pedidos'],['tiendas','🏪','Tiendas'],['cfg','⚙️','Tarifas']]}[role];
  $('#tabs').innerHTML=T.map(([v,i,l])=>`<button class="${view===v?'on':''}" onclick="go('${v}')"><b>${i}</b>${l}</button>`).join('')}
 function go(v){view=v;render();scrollTo(0,0)}
-function render(){$('#role').value=role;tabs();$('#app').innerHTML=({cliente:C,repartidor:R,admin:A}[role][view]||(()=>''))()}
+function render(){if(locked()){$('#tabs').innerHTML='';$('#app').innerHTML=gateView();return}tabs();$('#app').innerHTML=({cliente:C,repartidor:R,admin:A}[role][view]||(()=>''))()}
 
 
 let shop=null, cart={}, secF='', q='';
@@ -64,6 +64,30 @@ function entrega(){const z=DB.cfg.zonas;return `<div class="card"><h3>Entrega</h
   <div class="card"><h3>Forma de pago</h3><div class="pay"><label><input type="radio" name="pago" value="efectivo" checked onchange="calc()">💵 Efectivo contra entrega</label><label><input type="radio" name="pago" value="tarjeta" onchange="calc()">💳 Tarjeta de débito</label></div><div id="payx"></div></div>
   <div class="card"><div class="row" id="subrow"><span>Productos</span><b id="sub"></b></div><div class="row"><span>Envío estimado</span><b id="fee"></b></div><div class="row"><span>Total estimado*</span><span class="total" id="tot"></span></div><div class="muted">*El costo de los productos se cobra según el ticket de la tienda.</div></div>
   `}
+
+const SYNC='<div class="warn">ℹ️ Los pedidos y los PIN solo se sincronizan entre celulares cuando la app se conecte a un servidor. Por ahora cada celular guarda sus propios datos.</div>';
+async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+const SK='unlock_'+role;
+function locked(){return role!=='cliente'&&sessionStorage.getItem(SK)!=='1'}
+function logout(){sessionStorage.removeItem(SK);render()}
+function unlock(){sessionStorage.setItem(SK,'1');view='home';render()}
+if(role==='repartidor'){const l=JSON.parse(localStorage.getItem('rep_local')||'null');if(l)myRep=l.name}
+function gateView(){
+ if(role==='repartidor'){const l=JSON.parse(localStorage.getItem('rep_local')||'null');
+  if(!l)return `<h2>Acceso repartidor</h2><div class="card"><p class="muted">Primera vez en este celular: elige tu nombre y crea tu PIN de 4 dígitos.</p><label>¿Quién eres?</label><select class="f" id="gname">${DB.reps.map(r=>`<option>${esc(r)}</option>`).join('')}</select><label>PIN (4 dígitos)</label><input id="gp1" type="password" inputmode="numeric" maxlength="4"><label>Confirma el PIN</label><input id="gp2" type="password" inputmode="numeric" maxlength="4"><button class="btn" onclick="repCreate()">Crear PIN y entrar</button></div>${SYNC}`;
+  return `<h2>Acceso repartidor</h2><div class="card"><p>Hola, <b>${esc(l.name)}</b></p><label>Tu PIN</label><input id="gp1" type="password" inputmode="numeric" maxlength="4" onkeydown="event.key==='Enter'&&repLogin()"><button class="btn" onclick="repLogin()">Entrar</button><button class="btn sec" onclick="if(confirm('¿Cambiar de repartidor en este celular? Se borrará el PIN local.')){localStorage.removeItem('rep_local');render()}">No soy ${esc(l.name)}</button></div>${SYNC}`}
+ const h=localStorage.getItem('owner_hash');
+ if(!h)return `<h2>Panel del dueño</h2><div class="card"><p class="muted">Primera vez en este celular: crea tu contraseña (mínimo 6 caracteres).</p><label>Contraseña</label><input id="gp1" type="password"><label>Confirma la contraseña</label><input id="gp2" type="password"><button class="btn" onclick="ownCreate()">Crear contraseña y entrar</button></div>`;
+ return `<h2>Panel del dueño</h2><div class="card"><label>Contraseña</label><input id="gp1" type="password" onkeydown="event.key==='Enter'&&ownLogin()"><button class="btn" onclick="ownLogin()">Entrar</button></div><p class="muted">¿Olvidaste la contraseña? En este prototipo se reinicia borrando los datos del sitio en el navegador.</p>`}
+const gv=id=>($('#'+id)?.value||'');
+async function repCreate(){const p=gv('gp1');if(!/^\d{4}$/.test(p))return toast('El PIN debe ser de 4 dígitos');if(p!==gv('gp2'))return toast('Los PIN no coinciden');const n=gv('gname');
+ const pre=(DB.repPins||{})[n];if(pre&&pre!==await sha('pin:'+p))return toast('Ese repartidor ya tiene un PIN en este celular; usa ese PIN');
+ localStorage.setItem('rep_local',JSON.stringify({name:n,hash:await sha('pin:'+p)}));myRep=n;unlock()}
+async function repLogin(){const l=JSON.parse(localStorage.getItem('rep_local'));if(await sha('pin:'+gv('gp1'))===l.hash){myRep=l.name;unlock()}else toast('PIN incorrecto')}
+async function ownCreate(){const p=gv('gp1');if(p.length<6)return toast('Mínimo 6 caracteres');if(p!==gv('gp2'))return toast('No coinciden');localStorage.setItem('owner_hash',await sha('own:'+p));unlock()}
+async function ownLogin(){if(await sha('own:'+gv('gp1'))===localStorage.getItem('owner_hash'))unlock();else toast('Contraseña incorrecta')}
+async function ownChange(){if(await sha('own:'+gv('op'))!==localStorage.getItem('owner_hash'))return toast('Contraseña actual incorrecta');const p=gv('np');if(p.length<6)return toast('Mínimo 6 caracteres');localStorage.setItem('owner_hash',await sha('own:'+p));toast('Contraseña cambiada');render()}
+async function setPin(i){const p=gv('pin'+i);if(!/^\d{4}$/.test(p))return toast('PIN de 4 dígitos');DB.repPins=DB.repPins||{};DB.repPins[DB.reps[i]]=await sha('pin:'+p);save();toast('PIN guardado en este celular');render()}
 const C={
  home:()=>{const act=DB.orders.filter(o=>DB.mine.includes(o.id)&&!done(o));return `<h2>¡Hola! ¿Qué mandado necesitas hoy?</h2>
  <div class="grid">${Object.entries(CATS).map(([k,[i,n]])=>`<div class="cat" onclick="sel='${k}';go('nuevo')"><span>${i}</span>${n}</div>`).join('')}</div>
@@ -116,7 +140,7 @@ function crear(){const c=sel||'abarrotes',v=id=>($('#'+id)?.value||'').trim();le
 
 const R={home:()=>{const mine=DB.orders.filter(o=>o.rep===myRep&&!done(o)),av=DB.orders.filter(o=>!o.rep&&!done(o)),fin=DB.orders.filter(o=>o.rep===myRep&&done(o)&&o.d===today());
  const cash=fin.filter(o=>o.pago==='efectivo'&&o.cobrado).reduce((a,o)=>a+total(o),0);
- return `<div class="card"><label style="margin-top:0">Soy:</label><select class="f" onchange="myRep=this.value;render()">${DB.reps.map(r=>`<option ${r===myRep?'selected':''}>${esc(r)}</option>`).join('')}</select><div class="muted" style="margin-top:6px">Entregados hoy: ${fin.length} · Efectivo cobrado (envío+servicios): ${mx(cash)}</div></div>
+ return `<div class="card">${SYNC}<div class="row"><b>🛵 ${esc(myRep)}</b><button class="btn sec sm" style="margin:0" onclick="logout()">Salir</button></div><div class="muted" style="margin-top:6px">Entregados hoy: ${fin.length} · Efectivo cobrado (envío+servicios): ${mx(cash)}</div></div>
  <h3>Mis pedidos asignados</h3>${mine.map(o=>card(o,`<div class="muted">Estado actual: <b>${stName(o)}</b></div><button class="btn sm" onclick="adv(${o.id})">➡️ Pasar a “${steps(o)[o.st+1]}”</button>`)).join('')||'<p class="muted">Sin pedidos asignados.</p>'}
  <h3>Disponibles</h3>${av.map(o=>card(o,`<button class="btn sm" onclick="tomar(${o.id})">✅ Aceptar pedido</button>`)).join('')||'<p class="muted">No hay pedidos disponibles.</p>'}
  <h3>Entregados hoy</h3>${fin.map(o=>card(o,o.pago==='efectivo'?(o.cobrado?'<span class="tag ok">💵 Efectivo cobrado</span>':`<button class="btn sm" onclick="cobrar(${o.id})">💵 Marcar efectivo cobrado</button>`):'<span class="tag">💳 Pagado con tarjeta (demo)</span>')).join('')||'<p class="muted">Aún nada.</p>'}`}};
@@ -148,8 +172,8 @@ const A={
  cfg:()=>`<h2>Tarifas y zonas</h2><div class="card"><h3>Envío por zona (MXN)</h3>${DB.cfg.zonas.map((z,i)=>`<div class="grid" style="grid-template-columns:2fr 1fr auto;margin-bottom:8px"><input value="${esc(z.n)}" onchange="DB.cfg.zonas[${i}].n=this.value;save()"><input type="number" value="${z.f}" onchange="DB.cfg.zonas[${i}].f=+this.value;save()"><button class="btn sec sm" style="margin:0" onclick="DB.cfg.zonas.length>1&&DB.cfg.zonas.splice(${i},1);save();render()">🗑️</button></div>`).join('')}
  <button class="btn sec sm" onclick="DB.cfg.zonas.push({n:'Nueva zona',f:50});save();render()">➕ Agregar zona</button>
  <label>Comisión extra por pago de servicios</label><input type="number" value="${DB.cfg.comServ}" onchange="DB.cfg.comServ=+this.value;save()"><div class="muted">Valores de ejemplo, ajústalos a tus precios. Se guardan al salir del campo.</div></div>
- <div class="card"><h3>Repartidores</h3>${DB.reps.map(r=>`<div class="row"><span>${esc(r)}</span></div>`).join('')}<input id="nrep" placeholder="Nombre" style="margin-top:8px"><button class="btn sec sm" onclick="const n=$('#nrep').value.trim();if(n){DB.reps.push(n);save();render()}">➕ Agregar repartidor</button></div>`
+ ${SYNC}<div class="card"><h3>Repartidores y PIN</h3>${DB.reps.map((r,i)=>`<div class="row" style="margin-bottom:6px"><span>${esc(r)} ${(DB.repPins||{})[r]?'🔒':''}</span><span class="row"><input id="pin${i}" type="password" inputmode="numeric" maxlength="4" placeholder="PIN" style="width:80px"><button class="btn sec sm" style="margin:0" onclick="setPin(${i})">Guardar</button></span></div>`).join('')}<input id="nrep" placeholder="Nombre" style="margin-top:8px"><button class="btn sec sm" onclick="const n=$('#nrep').value.trim();if(n){DB.reps.push(n);save();render()}">➕ Agregar repartidor</button></div>
+ <div class="card"><h3>Cambiar contraseña del dueño</h3><label>Contraseña actual</label><input id="op" type="password"><label>Nueva contraseña</label><input id="np" type="password"><button class="btn sec" onclick="ownChange()">Cambiar contraseña</button><button class="btn sec" onclick="logout()">Cerrar sesión</button></div>`
 };
-$('#role').onchange=e=>{role=e.target.value;localStorage.setItem('rol',role);view='home';render()};
 const _r=render;render=function(){_r();calc()};render();
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+if('serviceWorker' in navigator)navigator.serviceWorker.register(window.APP_BASE+'sw.js',{scope:window.APP_BASE});
