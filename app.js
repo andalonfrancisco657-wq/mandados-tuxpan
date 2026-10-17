@@ -7,7 +7,7 @@ const $=s=>document.querySelector(s), mx=n=>'$'+Number(n||0).toFixed(2)+' MXN';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const today=()=>new Date().toISOString().slice(0,10);
 
-const SV=3; // versión de datos
+const SV=4; // versión de datos
 const mkP=(arr)=>arr.map((x,i)=>({id:i+1,n:x[0],pres:x[1],p:x[2],sec:x[3],e:x[4],disp:1}));
 const AB=[['Tortillas de maíz','1 kg',24,'Básicos','🫓'],['Frijol negro','1 kg',38,'Básicos','🫘'],['Arroz','1 kg',32,'Básicos','🍚'],['Azúcar estándar','1 kg',34,'Básicos','🍬'],['Aceite vegetal','900 ml',42,'Básicos','🫗'],['Huevo blanco','12 pzas',48,'Básicos','🥚'],['Sal de mesa','1 kg',14,'Básicos','🧂'],['Pasta para sopa','200 g',12,'Básicos','🍝'],['Leche entera','1 L',29,'Lácteos','🥛'],['Queso fresco','400 g',62,'Lácteos','🧀'],['Crema','450 ml',39,'Lácteos','🥣'],['Pan de caja blanco','680 g',52,'Panadería','🍞'],['Refresco de cola','2 L',38,'Bebidas','🥤'],['Agua purificada','garrafón 20 L',40,'Bebidas','💧'],['Café soluble','120 g',68,'Bebidas','☕'],['Jitomate','1 kg',30,'Frutas y verduras','🍅'],['Cebolla blanca','1 kg',26,'Frutas y verduras','🧅'],['Plátano','1 kg',22,'Frutas y verduras','🍌'],['Limón','1 kg',35,'Frutas y verduras','🍋'],['Papel higiénico','4 rollos',36,'Limpieza','🧻'],['Detergente en polvo','1 kg',45,'Limpieza','🧼'],['Cloro','1 L',18,'Limpieza','🧴']];
 const FA=[['Paracetamol','500 mg, 10 tabletas',35,'Dolor y fiebre','💊'],['Ibuprofeno','400 mg, 10 tabletas',45,'Dolor y fiebre','💊'],['Naproxeno','250 mg, 20 tabletas',55,'Dolor y fiebre','💊'],['Antigripal','12 cápsulas',79,'Gripa y tos','🤧'],['Jarabe para la tos','120 ml',95,'Gripa y tos','🍯'],['Pastillas para garganta','12 pzas',38,'Gripa y tos','🍬'],['Antiácido','12 tabletas masticables',42,'Estómago','🫃'],['Suero oral','500 ml',28,'Estómago','🧃'],['Loperamida','2 mg, 12 tabletas',48,'Estómago','💊'],['Loratadina','10 mg, 10 tabletas',59,'Alergias','🌼'],['Alcohol etílico','250 ml',32,'Botiquín','🧴'],['Gasas estériles','10 pzas',30,'Botiquín','🩹'],['Curitas','20 pzas',35,'Botiquín','🩹'],['Agua oxigenada','230 ml',22,'Botiquín','🫧'],['Termómetro digital','1 pza',89,'Botiquín','🌡️'],['Pañales etapa 3','40 pzas',249,'Bebé','👶'],['Toallitas húmedas','80 pzas',45,'Bebé','🧻'],['Cubrebocas','10 pzas',30,'Cuidado personal','😷'],['Repelente de mosquitos','200 ml',89,'Cuidado personal','🦟'],['Bloqueador solar FPS 50','120 ml',179,'Cuidado personal','☀️']];
@@ -17,7 +17,8 @@ function seedStores(){const v=(arr,f)=>mkP(arr.map(x=>[x[0],x[1],Math.round(x[2]
  {id:3,cat:'abarrotes',n:'Tiendita Don Pepe (ejemplo)',tipo:'Tienda de barrio',col:'Col. Ejidal',hor:'6:30 – 21:30',act:1,prods:v(AB.slice(0,18),1.05)},
  {id:4,cat:'farmacia',n:'Farmacia Salud Total (ejemplo)',tipo:'Farmacia',col:'Col. Centro',hor:'8:00 – 23:00',act:1,prods:v(FA,1)},
  {id:5,cat:'farmacia',n:'Farmacia Bienestar (ejemplo)',tipo:'Farmacia de barrio',col:'Col. Revolución',hor:'9:00 – 21:00',act:1,prods:v(FA,0.95)}]}
-function seed(){const t=Date.now();return{
+function seed(){const d=seed0();addV4(d);d.v=SV;return d}
+function seed0(){const t=Date.now();return{
  cfg:{zonas:[{n:'Centro',f:30},{n:'Colonias cercanas',f:40},{n:'Orillas / Ejidos',f:60}],comServ:15},
  v:SV,stores:seedStores(),reps:['Juan (ejemplo)','Lupita (ejemplo)'],
  orders:[
@@ -26,15 +27,16 @@ function seed(){const t=Date.now();return{
  {id:1003,ej:1,cat:'servicios',det:{tipo:'CFE (luz)',ref:'123456789012',monto:450},dir:'Calle Hidalgo 8, Col. Lázaro Cárdenas',tel:'3195551122',zona:1,fee:55,pago:'efectivo',pagaCon:600,st:0,rep:'',cobrado:0,t:t-600e3,d:today()}],
  mine:[1001,1002,1003]}}
 let DB=JSON.parse(localStorage.getItem('mandados')||'null');
-if(DB&&DB.v===2){DB.v=3} // v2→v3: conserva tiendas, productos, zonas, repartidores
+if(DB&&DB.v===2){DB.v=3}
+if(DB&&DB.v===3){addV4(DB);DB.v=4} // v3→v4: agrega directivo sin borrar datos // v2→v3: conserva tiendas, productos, zonas, repartidores
 if(!DB||DB.v!==SV){const n=seed();if(DB){n.cfg=DB.cfg||n.cfg;n.reps=DB.reps||n.reps;const old=(DB.orders||[]).filter(o=>!o.ej&&o.det);n.orders=n.orders.concat(old);n.mine=n.mine.concat((DB.mine||[]).filter(id=>old.some(o=>o.id===id)))}DB=n}
 const save=()=>localStorage.setItem('mandados',JSON.stringify(DB));save();
 let edSt=null;let role=window.APP_ROLE||'cliente', view='home', sel=null, track=null, myRep=DB.reps[0];
 const toast=m=>{const e=$('#toast');e.textContent=m;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',2200)};
 const steps=o=>o.cat==='paquetes'?STP:ST;
 const stName=o=>{const s=steps(o);return s[Math.min(o.st,s.length-1)]};
-const done=o=>o.st>=steps(o).length-1;
-const tag=o=>`${o.ej?'<span class="tag ex">EJEMPLO</span> ':''}<span class="tag ${done(o)?'ok':''}">${stName(o)}</span>`;
+const done=o=>o.st>=steps(o).length-1||!!o.cancel;
+const tag=o=>`${o.ej?'<span class="tag ex">EJEMPLO</span> ':''}<span class="tag ${done(o)?'ok':''}">${o.cancel?'Cancelado':stName(o)}</span>${typeof isLate!=='undefined'&&isLate(o)?' <span class="tag bad">⏰ Tarde ('+durMin(o)+' min)</span>':''}${typeof overch!=='undefined'&&overch(o)?' <span class="tag bad">⚠️ Cobró de más: '+mx(o.cobradoMonto)+'</span>':''}`;
 function summary(o){const d=o.det;if(d.items)return itemsHtml(o);return o.cat==='paquetes'?`De: ${esc(d.de)} → A: ${esc(d.a)} (${esc(d.tam)})`:o.cat==='servicios'?`${esc(d.tipo)} · Ref ${esc(d.ref)} · ${mx(d.monto)}`:esc(d.lista).replace(/\n/g,', ')+(d.tienda?` · ${esc(d.tienda)}`:'')+(d.receta?' · 📷 receta':'')}
 const sub=o=>o.det.items?o.det.items.reduce((a,i)=>a+i.p*i.q,0)+Number(o.det.extraEst||0):0;
 const total=o=>o.fee+(o.cat==='servicios'?Number(o.det.monto||0):0)+sub(o);
@@ -43,11 +45,12 @@ const card=(o,extra='')=>`<div class="card"><div class="row"><b>${CATS[o.cat][0]
 <div class="muted">${summary(o)}</div><div class="muted">${o.src==='invitado'?'<span class="tag ex">Invitado</span>':o.src==='cuenta'?'<span class="tag ok">Cuenta</span>':''} 👤 ${esc(o.nombre||'')} · 📞 <a href="tel:${esc(o.tel)}">${esc(o.tel)}</a></div><div class="muted">📍 ${esc(o.dir)}</div>
 <div class="row"><span class="muted">${o.pago==='tarjeta'?'💳 Tarjeta (demo)':'💵 Efectivo'+(o.pagaCon?` · paga con ${mx(o.pagaCon)}`:'')}${o.rep?' · 🛵 '+esc(o.rep):''}</span><b>${o.det.items||o.cat==='servicios'?'Total '+mx(total(o)):'Envío '+mx(o.fee)}</b></div>${extra}</div>`;
 
-function tabs(){const T={cliente:[['home','🏠','Inicio'],['nuevo','➕','Pedir'],['hist','📋','Mis pedidos']],repartidor:[['home','📦','Pedidos']],admin:[['home','📊','Resumen'],['todos','📋','Pedidos'],['tiendas','🏪','Tiendas'],['cfg','⚙️','Tarifas']]}[role];
+function tabs(){const T={dir:[['home','📊','Panel'],['cli','👥','Clientes'],['rep','🛵','Repart.'],['due','🏪','Dueños'],['quejas','📣','Quejas'],['mas','⚙️','Más']],cliente:[['home','🏠','Inicio'],['nuevo','➕','Pedir'],['hist','📋','Mis pedidos']],repartidor:[['home','📦','Pedidos']],admin:[['home','📊','Resumen'],['todos','📋','Pedidos'],['tiendas','🏪','Tiendas'],['cfg','⚙️','Tarifas']]}[role];
  $('#tabs').innerHTML=T.map(([v,i,l])=>`<button class="${view===v?'on':''}" onclick="go('${v}')"><b>${i}</b>${l}</button>`).join('')}
-function go(v){view=v;render();scrollTo(0,0)}
+function go(v){if(v!==view&&['cli','rep','due','quejas'].includes(v)){pq='';pf='todos'}view=v;render();scrollTo(0,0)}
 function profBtn(){let b=$('#prof');if(!b){b=document.createElement('button');b.id='prof';b.className='profbtn';b.onclick=()=>go(acct()?'perfil':'auth');document.querySelector('.top').appendChild(b)}b.textContent=acct()?'👤 '+acct().nombre.split(' ')[0]:'👤 '+(isGuest()?'Invitado':'Mi cuenta')}
-function render(){if(locked()){$('#tabs').innerHTML='';$('#app').innerHTML=gateView();return}if(role==='cliente'){if(!sess()&&!AV[view])view='auth';if(AV[view]){$('#tabs').innerHTML='';$('#app').innerHTML=AV[view]();profBtn();return}profBtn()}tabs();$('#app').innerHTML=({cliente:C,repartidor:R,admin:A}[role][view]||(()=>''))()}
+function render(){if(locked()){$('#tabs').innerHTML='';$('#app').innerHTML=gateView();return}if(role==='cliente'){if(!sess()&&!AV[view])view='auth';if(AV[view]){$('#tabs').innerHTML='';$('#app').innerHTML=AV[view]();profBtn();return}profBtn();const a=acct(),x=a&&sancSt('cli:'+a.email);if(x){$('#tabs').innerHTML='';$('#app').innerHTML=blockedView(x,'Cuenta bloqueada')+'<button class="btn sec" onclick="localStorage.removeItem(SESS);go(\'auth\')">Cerrar sesión</button>';return}}
+ if(role==='admin'){const x=sancSt('due:'+DB.duenos[0]);if(x){$('#tabs').innerHTML='';$('#app').innerHTML=blockedView(x,'Acceso del dueño bloqueado');return}}tabs();$('#app').innerHTML=({cliente:C,repartidor:R,admin:A,dir:D}[role][view]||(()=>''))()}
 
 
 let shop=null, cart={}, secF='', q='';
@@ -71,6 +74,7 @@ function entrega(){const z=DB.cfg.zonas;return `<div class="card"><h3>Entrega</h
 const SYNC='<div class="warn">ℹ️ Los pedidos y los PIN solo se sincronizan entre celulares cuando la app se conecte a un servidor. Por ahora cada celular guarda sus propios datos.</div>';
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 const SK='unlock_'+role;
+const HK=role==='dir'?'dir_hash':'owner_hash',PF=role==='dir'?'dir:':'own:',GT=role==='dir'?'Panel directivo':'Panel del dueño';
 function locked(){return role!=='cliente'&&sessionStorage.getItem(SK)!=='1'}
 function logout(){sessionStorage.removeItem(SK);render()}
 function unlock(){sessionStorage.setItem(SK,'1');view='home';render()}
@@ -79,17 +83,17 @@ function gateView(){
  if(role==='repartidor'){const l=JSON.parse(localStorage.getItem('rep_local')||'null');
   if(!l)return `<h2>Acceso repartidor</h2><div class="card"><p class="muted">Primera vez en este celular: elige tu nombre y crea tu PIN de 4 dígitos.</p><label>¿Quién eres?</label><select class="f" id="gname">${DB.reps.map(r=>`<option>${esc(r)}</option>`).join('')}</select><label>PIN (4 dígitos)</label><input id="gp1" type="password" inputmode="numeric" maxlength="4"><label>Confirma el PIN</label><input id="gp2" type="password" inputmode="numeric" maxlength="4"><button class="btn" onclick="repCreate()">Crear PIN y entrar</button></div>${SYNC}`;
   return `<h2>Acceso repartidor</h2><div class="card"><p>Hola, <b>${esc(l.name)}</b></p><label>Tu PIN</label><input id="gp1" type="password" inputmode="numeric" maxlength="4" onkeydown="event.key==='Enter'&&repLogin()"><button class="btn" onclick="repLogin()">Entrar</button><button class="btn sec" onclick="if(confirm('¿Cambiar de repartidor en este celular? Se borrará el PIN local.')){localStorage.removeItem('rep_local');render()}">No soy ${esc(l.name)}</button></div>${SYNC}`}
- const h=localStorage.getItem('owner_hash');
- if(!h)return `<h2>Panel del dueño</h2><div class="card"><p class="muted">Primera vez en este celular: crea tu contraseña (mínimo 6 caracteres).</p><label>Contraseña</label><input id="gp1" type="password"><label>Confirma la contraseña</label><input id="gp2" type="password"><button class="btn" onclick="ownCreate()">Crear contraseña y entrar</button></div>`;
- return `<h2>Panel del dueño</h2><div class="card"><label>Contraseña</label><input id="gp1" type="password" onkeydown="event.key==='Enter'&&ownLogin()"><button class="btn" onclick="ownLogin()">Entrar</button></div><p class="muted">¿Olvidaste la contraseña? En este prototipo se reinicia borrando los datos del sitio en el navegador.</p>`}
+ const h=localStorage.getItem(HK);
+ if(!h)return `<h2>${GT}</h2><div class="card"><p class="muted">Primera vez en este celular: crea tu contraseña (mínimo 6 caracteres).</p><label>Contraseña</label><input id="gp1" type="password"><label>Confirma la contraseña</label><input id="gp2" type="password"><button class="btn" onclick="ownCreate()">Crear contraseña y entrar</button></div>`;
+ return `<h2>${GT}</h2><div class="card"><label>Contraseña</label><input id="gp1" type="password" onkeydown="event.key==='Enter'&&ownLogin()"><button class="btn" onclick="ownLogin()">Entrar</button></div><p class="muted">¿Olvidaste la contraseña? En este prototipo se reinicia borrando los datos del sitio en el navegador.</p>`}
 const gv=id=>($('#'+id)?.value||'');
 async function repCreate(){const p=gv('gp1');if(!/^\d{4}$/.test(p))return toast('El PIN debe ser de 4 dígitos');if(p!==gv('gp2'))return toast('Los PIN no coinciden');const n=gv('gname');
  const pre=(DB.repPins||{})[n];if(pre&&pre!==await sha('pin:'+p))return toast('Ese repartidor ya tiene un PIN en este celular; usa ese PIN');
  localStorage.setItem('rep_local',JSON.stringify({name:n,hash:await sha('pin:'+p)}));myRep=n;unlock()}
 async function repLogin(){const l=JSON.parse(localStorage.getItem('rep_local'));if(await sha('pin:'+gv('gp1'))===l.hash){myRep=l.name;unlock()}else toast('PIN incorrecto')}
-async function ownCreate(){const p=gv('gp1');if(p.length<6)return toast('Mínimo 6 caracteres');if(p!==gv('gp2'))return toast('No coinciden');localStorage.setItem('owner_hash',await sha('own:'+p));unlock()}
-async function ownLogin(){if(await sha('own:'+gv('gp1'))===localStorage.getItem('owner_hash'))unlock();else toast('Contraseña incorrecta')}
-async function ownChange(){if(await sha('own:'+gv('op'))!==localStorage.getItem('owner_hash'))return toast('Contraseña actual incorrecta');const p=gv('np');if(p.length<6)return toast('Mínimo 6 caracteres');localStorage.setItem('owner_hash',await sha('own:'+p));toast('Contraseña cambiada');render()}
+async function ownCreate(){const p=gv('gp1');if(p.length<6)return toast('Mínimo 6 caracteres');if(p!==gv('gp2'))return toast('No coinciden');localStorage.setItem(HK,await sha(PF+p));unlock()}
+async function ownLogin(){if(await sha(PF+gv('gp1'))===localStorage.getItem(HK))unlock();else toast('Contraseña incorrecta')}
+async function ownChange(){if(await sha(PF+gv('op'))!==localStorage.getItem(HK))return toast('Contraseña actual incorrecta');const p=gv('np');if(p.length<6)return toast('Mínimo 6 caracteres');localStorage.setItem(HK,await sha(PF+p));toast('Contraseña cambiada');render()}
 async function setPin(i){const p=gv('pin'+i);if(!/^\d{4}$/.test(p))return toast('PIN de 4 dígitos');DB.repPins=DB.repPins||{};DB.repPins[DB.reps[i]]=await sha('pin:'+p);save();toast('PIN guardado en este celular');render()}
 
 const AK='mandados_accounts',SESS='cli_session';
@@ -128,6 +132,26 @@ async function doLogin(){const e=$('#le').value.trim().toLowerCase(),a=accts()[e
 function saveProf(add){const A=accts(),a=A[acct().email];a.nombre=$('#pn').value.trim()||a.nombre;const t=$('#pt').value.replace(/\D/g,'');if(t.length!==10)return toast('Teléfono de 10 dígitos');a.tel=t;
  a.dirs=a.dirs.map((d,i)=>({calle:$('#pc'+i).value.trim(),zona:+$('#pz'+i).value,ref:$('#pr'+i).value.trim()}));if(add)a.dirs.push({calle:'',zona:0,ref:''});saveAccts(A);toast(add?'Escribe la nueva dirección':'Perfil guardado');render()}
 function delDir(i){const A=accts(),a=A[acct().email];a.dirs.splice(i,1);saveAccts(A);render()}
+
+function addV4(d){const t=Date.now(),H=36e5;d.duenos=d.duenos||['Dueño principal','Dueño sucursal (ejemplo)'];d.sanc=d.sanc||{};d.audit=d.audit||[];d.quejas=d.quejas||[];d.dirCfg=d.dirCfg||{tarde:60};
+ d.orders.forEach(o=>{o.ts=o.ts||{0:o.t}});
+ if(!d.orders.some(o=>o.id===1005))d.orders.push({id:1005,ej:1,cat:'farmacia',det:{storeId:4,tienda:'Farmacia Salud Total (ejemplo)',items:[{n:'Suero oral',pres:'500 ml',p:28,q:3}],extra:'',extraEst:0},dir:'Calle Allende 12 (ejemplo)',tel:'3190000001',nombre:'Cliente tardado (ejemplo)',src:'invitado',zona:0,fee:30,pago:'tarjeta',st:4,rep:'Juan (ejemplo)',cobrado:0,t:t-3*H,ts:{0:t-3*H,4:t-3*H+95*6e4},d:today()},
+  {id:1006,ej:1,cat:'abarrotes',det:{storeId:2,tienda:'Minisúper El Ahorro (ejemplo)',items:[{n:'Arroz',pres:'1 kg',p:31,q:2}],extra:'',extraEst:0},dir:'Av. Hidalgo 40 (ejemplo)',tel:'3190000002',nombre:'Cliente cobro (ejemplo)',src:'invitado',zona:1,fee:40,pago:'efectivo',pagaCon:200,st:4,rep:'Lupita (ejemplo)',cobrado:1,cobradoMonto:150,t:t-2*H,ts:{0:t-2*H,4:t-2*H+40*6e4},d:today()});
+ if(!d.quejas.length)d.quejas=[{id:1,ej:1,orderId:1005,tipo:'Llegó tarde',txt:'Tardó más de hora y media (ejemplo)',rep:'Juan (ejemplo)',cli:'inv:3190000001',t:t-2*H,st:'Nueva'},{id:2,ej:1,orderId:1006,tipo:'Me cobraron de más',txt:'Me cobró $150 y eran $102 (ejemplo)',rep:'Lupita (ejemplo)',cli:'inv:3190000002',t:t-H,st:'En revisión'}];
+ if(!d.audit.length){d.audit.push({t:t-5*24*H,key:'rep:Lupita (ejemplo)',acc:'Advertencia',mot:'Mal trato',nota:'Sanción de ejemplo',ej:1});}}
+// ---- sanciones / directivo (compartido)
+const SANC_NOTE='<div class="warn">Versión de prueba: las sanciones solo aplican en este celular hasta conectar el servidor.</div>';
+const MOTIVOS=['No entregó a tiempo','Cobró de más','Mal trato','Pedido falso o no pagó','Uso indebido','Otro'];
+const fdt=t=>new Date(t).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+function sancSt(k){const x=(DB.sanc||{})[k];if(!x||x.st==='activo')return null;if(x.st==='suspendido'&&x.hasta&&Date.now()>x.hasta)return null;return x}
+const sancMsg=x=>x.st==='baja'?`Tu cuenta fue dada de baja. Motivo: ${esc(x.mot)}`:`Tu cuenta está suspendida hasta ${fdt(x.hasta)}. Motivo: ${esc(x.mot)}`;
+const blockedView=(x,who)=>`<div class="card" style="text-align:center;border:2px solid #b91c1c"><div style="font-size:48px">⛔</div><h2>${who}</h2><p>${sancMsg(x)}</p>${x.nota?`<p class="muted">${esc(x.nota)}</p>`:''}<p class="muted">Si crees que es un error, contáctanos por WhatsApp.</p></div>`;
+const cliKey=o=>o.src==='cuenta'?'cli:'+o.email:'inv:'+o.tel;
+const lateMin=()=>(DB.dirCfg||{tarde:60}).tarde;
+const endT=o=>(o.ts||{})[steps(o).length-1];
+const durMin=o=>endT(o)?Math.round((endT(o)-o.t)/6e4):null;
+const isLate=o=>done(o)&&durMin(o)!==null&&durMin(o)>lateMin();
+const overch=o=>o.pago==='efectivo'&&o.cobrado&&o.cobradoMonto!=null&&o.cobradoMonto>total(o)+0.009;
 const C={
  home:()=>{const act=DB.orders.filter(o=>myOrd(o)&&!done(o));return `<h2>¡Hola! ¿Qué mandado necesitas hoy?</h2>
  <div class="grid">${Object.entries(CATS).map(([k,[i,n]])=>`<div class="cat" onclick="sel='${k}';go('nuevo')"><span>${i}</span>${n}</div>`).join('')}</div>
@@ -156,9 +180,12 @@ const C={
 
  track:()=>{const o=DB.orders.find(x=>x.id===track);if(!o)return'';const s=steps(o);return `<h2>Seguimiento #${o.id}</h2>${card(o)}
   <div class="card"><ul class="steps">${s.map((n,i)=>`<li class="${i<=o.st?'done':''} ${i===o.st?'cur':''}">${n}</li>`).join('')}</ul></div>
+  ${o.st===0&&!o.cancel?`<button class="btn sec" onclick="if(confirm('¿Cancelar este pedido?')){O(${o.id}).cancel=1;save();render()}">Cancelar pedido</button>`:''}
+  ${done(o)&&!o.cancel?((DB.quejas||[]).some(q=>q.orderId===o.id)?'<div class="card"><span class="tag">📣 Problema reportado</span> Lo estamos revisando.</div>':`<button class="btn sec" onclick="$('#qform').style.display='block'">📣 Reportar un problema</button><div id="qform" class="card" style="display:none"><label>¿Qué pasó?</label><select class="f" id="qtipo">${['Llegó tarde','Me cobraron de más','Producto incorrecto','Mal trato','Otro'].map(x=>`<option>${x}</option>`).join('')}</select><label>Cuéntanos</label><textarea id="qtxt"></textarea><button class="btn" onclick="queja(${o.id})">Enviar reporte</button></div>`):''}
   <a class="btn wa" style="text-align:center;text-decoration:none" href="https://wa.me/${WA}?text=${encodeURIComponent('Hola, pregunto por mi pedido #'+o.id)}" target="_blank">💬 Preguntar por WhatsApp</a>${o.src==='invitado'&&isGuest()?`<div class="card"><b>¿Quieres pedir más rápido la próxima vez?</b><button class="btn" onclick="pre={nombre:'${esc(o.nombre).replace(/'/g,'')}',tel:'${o.tel}',calle:'${esc(o.dir).replace(/'/g,'')}',zona:${o.zona}};go('signup')">Crear cuenta con estos datos</button></div>`:''}<button class="btn sec" onclick="go('hist')">Volver</button>`},
  hist:()=>`<h2>Mis pedidos</h2>${acct()?'':'<p class="muted">Pedidos hechos como invitado en este celular.</p>'}`+DB.orders.filter(myOrd).sort((a,b)=>b.t-a.t).map(o=>card(o,`<button class="btn sm" onclick="track=${o.id};go('track')">Ver seguimiento</button>`)).join('')
 };
+function queja(id){const o=O(id),t=$('#qtxt').value.trim();if(!t)return toast('Describe el problema');DB.quejas.push({id:Math.max(0,...DB.quejas.map(q=>q.id))+1,orderId:id,tipo:$('#qtipo').value,txt:t,rep:o.rep,cli:cliKey(o),t:Date.now(),st:'Nueva'});save();toast('Gracias, revisaremos tu reporte');render()}
 function feeNow(){const z=DB.cfg.zonas[+($('#zona')?.value||0)];return z.f+((sel||'abarrotes')==='servicios'?DB.cfg.comServ:0)}
 function calc(){if(!$('#fee'))return;const f=feeNow(),cs=curSub(),m=((sel==='servicios')?Number($('#monto')?.value||0):0)+cs,p=document.querySelector('[name=pago]:checked').value;
  $('#fee').textContent=mx(f);$('#sub').textContent=mx(cs);$('#subrow').style.display=view==='carrito'?'flex':'none';$('#tot').textContent=mx(f+m);
@@ -173,22 +200,75 @@ function crear(){const c=sel||'abarrotes',v=id=>($('#'+id)?.value||'').trim();le
  if(c==='servicios')det={tipo:v('tipo'),ref:v('ref'),monto:+v('monto')};
  }
  const miss=det.items?false:(c==='paquetes'?!det.de||!det.a:c==='servicios'?!det.ref||!det.monto:!det.lista);
- if(miss)return toast('Completa los datos del pedido');if(!v('nom'))return toast('Escribe el nombre de quien recibe');if(!/^\d{10}$/.test(v('tel').replace(/\D/g,'')))return toast('Escribe un teléfono de 10 dígitos');if(!v('dir'))return toast('Escribe la dirección de entrega');
+ if(miss)return toast('Completa los datos del pedido');{const a=acct(),x=a?sancSt('cli:'+a.email):sancSt('inv:'+v('tel').replace(/\D/g,''));if(x)return toast(a?sancMsg(x):'Este número de teléfono está bloqueado. No puede pedir como invitado.')}if(!v('nom'))return toast('Escribe el nombre de quien recibe');if(!/^\d{10}$/.test(v('tel').replace(/\D/g,'')))return toast('Escribe un teléfono de 10 dígitos');if(!v('dir'))return toast('Escribe la dirección de entrega');
  const pago=document.querySelector('[name=pago]:checked').value;
- const o={id:Math.max(...DB.orders.map(x=>x.id),1000)+1,cat:c,det,dir:v('dir'),tel:v('tel'),zona:+v('zona'),fee:feeNow(),pago,pagaCon:pago==='efectivo'?+v('pagaCon')||0:0,st:0,rep:'',cobrado:0,t:Date.now(),d:today(),nombre:v('nom'),src:acct()?'cuenta':'invitado',email:acct()?.email||''};o.tel=o.tel.replace(/\D/g,'');
+ const o={id:Math.max(...DB.orders.map(x=>x.id),1000)+1,cat:c,det,dir:v('dir'),tel:v('tel'),zona:+v('zona'),fee:feeNow(),pago,pagaCon:pago==='efectivo'?+v('pagaCon')||0:0,st:0,rep:'',cobrado:0,t:Date.now(),ts:{0:Date.now()},d:today(),nombre:v('nom'),src:acct()?'cuenta':'invitado',email:acct()?.email||''};o.tel=o.tel.replace(/\D/g,'');
  DB.orders.push(o);DB.mine.push(o.id);save();if(det.items){cart={};shop=null}track=o.id;toast(pago==='tarjeta'?'Pedido enviado (pago demo, sin cargo)':'¡Pedido enviado!');go('track')}
 
 const R={home:()=>{const mine=DB.orders.filter(o=>o.rep===myRep&&!done(o)),av=DB.orders.filter(o=>!o.rep&&!done(o)),fin=DB.orders.filter(o=>o.rep===myRep&&done(o)&&o.d===today());
  const cash=fin.filter(o=>o.pago==='efectivo'&&o.cobrado).reduce((a,o)=>a+total(o),0);
- return `<div class="card">${SYNC}<div class="row"><b>🛵 ${esc(myRep)}</b><button class="btn sec sm" style="margin:0" onclick="logout()">Salir</button></div><div class="muted" style="margin-top:6px">Entregados hoy: ${fin.length} · Efectivo cobrado (envío+servicios): ${mx(cash)}</div></div>
+ const sx=sancSt('rep:'+myRep);return `${sx?blockedView(sx,'Repartidor suspendido')+'<div class="warn">No puedes aceptar pedidos nuevos.</div>':''}<div class="card">${SYNC}<div class="row"><b>🛵 ${esc(myRep)}</b><button class="btn sec sm" style="margin:0" onclick="logout()">Salir</button></div><div class="muted" style="margin-top:6px">Entregados hoy: ${fin.length} · Efectivo cobrado (envío+servicios): ${mx(cash)}</div></div>
  <h3>Mis pedidos asignados</h3>${mine.map(o=>card(o,`<div class="muted">Estado actual: <b>${stName(o)}</b></div><button class="btn sm" onclick="adv(${o.id})">➡️ Pasar a “${steps(o)[o.st+1]}”</button>`)).join('')||'<p class="muted">Sin pedidos asignados.</p>'}
  <h3>Disponibles</h3>${av.map(o=>card(o,`<button class="btn sm" onclick="tomar(${o.id})">✅ Aceptar pedido</button>`)).join('')||'<p class="muted">No hay pedidos disponibles.</p>'}
- <h3>Entregados hoy</h3>${fin.map(o=>card(o,o.pago==='efectivo'?(o.cobrado?'<span class="tag ok">💵 Efectivo cobrado</span>':`<button class="btn sm" onclick="cobrar(${o.id})">💵 Marcar efectivo cobrado</button>`):'<span class="tag">💳 Pagado con tarjeta (demo)</span>')).join('')||'<p class="muted">Aún nada.</p>'}`}};
+ <h3>Entregados hoy</h3>${fin.map(o=>card(o,o.pago==='efectivo'?(o.cobrado?'<span class="tag ok">💵 Efectivo cobrado</span>':`<label>¿Cuánto cobraste? (total sin el cambio, debe ser ${mx(total(o))})</label><input id="cm${o.id}" type="number" inputmode="decimal" value="${total(o)}"><button class="btn sm" onclick="cobrar(${o.id})">💵 Marcar efectivo cobrado</button>`):'<span class="tag">💳 Pagado con tarjeta (demo)</span>')).join('')||'<p class="muted">Aún nada.</p>'}`}};
 const O=id=>DB.orders.find(o=>o.id===id);
-function tomar(id){O(id).rep=myRep;save();toast('Pedido aceptado');render()}
-function adv(id){const o=O(id);o.st=Math.min(o.st+1,steps(o).length-1);save();toast('Estado: '+stName(o));render()}
-function cobrar(id){O(id).cobrado=1;save();toast('Efectivo registrado');render()}
+function tomar(id){const x=sancSt('rep:'+myRep);if(x)return toast('Estás suspendido: no puedes aceptar pedidos');O(id).rep=myRep;save();toast('Pedido aceptado');render()}
+function adv(id){const o=O(id);o.st=Math.min(o.st+1,steps(o).length-1);o.ts=o.ts||{0:o.t};o.ts[o.st]=Date.now();save();toast('Estado: '+stName(o));render()}
+function cobrar(id){const o=O(id),m=+($('#cm'+id)?.value||0);if(!m)return toast('Escribe cuánto cobraste (sin contar el cambio)');o.cobrado=1;o.cobradoMonto=m;save();toast(overch(o)?'⚠️ Registrado: el cobro es mayor al total del pedido':'Efectivo registrado');render()}
 
+
+// ================= DIRECTIVO =================
+let pKey=null,pq='',pf='todos';
+const kType=k=>k.split(':')[0],kId=k=>k.slice(k.indexOf(':')+1);
+const stLabel=k=>{const x=sancSt(k);return x?(x.st==='baja'?'<span class="tag bad">Dado de baja</span>':'<span class="tag ex">Suspendido</span>'):'<span class="tag ok">Activo</span>'};
+function clientes(){const A=accts(),L=Object.values(A).map(a=>({k:'cli:'+a.email,n:a.nombre,sub:a.email+' · '+a.tel,tipo:'Cuenta'}));const seen={};DB.orders.filter(o=>o.src!=='cuenta'&&o.tel).forEach(o=>{if(!seen[o.tel]){seen[o.tel]=1;L.push({k:'inv:'+o.tel,n:o.nombre||'Invitado',sub:o.tel,tipo:'Invitado'})}});
+ Object.keys(DB.sanc).filter(k=>k.startsWith('inv:')&&!seen[kId(k)]).forEach(k=>L.push({k,n:'Teléfono bloqueado',sub:kId(k),tipo:'Invitado'}));return L}
+const people=t=>t==='cli'?clientes():t==='rep'?DB.reps.map(r=>({k:'rep:'+r,n:r,sub:'Repartidor',tipo:'Repartidor'})):DB.duenos.map(d=>({k:'due:'+d,n:d,sub:'Dueño',tipo:'Dueño'}));
+const ordersOf=k=>{const t=kType(k),id=kId(k);return DB.orders.filter(o=>t==='rep'?o.rep===id:t==='cli'?(o.src==='cuenta'&&o.email===id):t==='inv'?(o.src!=='cuenta'&&o.tel===id):true)};
+function metrics(k){const t=kType(k),O=ordersOf(k);
+ if(t==='rep'){const d=O.filter(o=>done(o)&&!o.cancel),dm=d.map(durMin).filter(x=>x!==null);return [['Entregas',d.length],['Tiempo promedio',dm.length?Math.round(dm.reduce((a,b)=>a+b,0)/dm.length)+' min':'—'],['Tardes',d.filter(isLate).length],['Quejas',DB.quejas.filter(q=>q.rep===kId(k)).length],['Efectivo cobrado',mx(O.filter(o=>o.cobrado).reduce((a,o)=>a+(o.cobradoMonto??total(o)),0))],['Cobros de más',O.filter(overch).length]]}
+ if(t==='due')return [['Pedidos de la plataforma',DB.orders.length],['Tiendas',DB.stores.length],['Repartidores',DB.reps.length]];
+ return [['Pedidos',O.length],['Cancelaciones',O.filter(o=>o.cancel).length],['Quejas hechas',DB.quejas.filter(q=>q.cli===k).length],['Sanciones',DB.audit.filter(a=>a.key===k).length]]}
+function listView(t,title){const L=people(t).filter(p=>(!pq||(p.n+' '+p.sub).toLowerCase().includes(pq.toLowerCase()))&&(pf==='todos'||(pf==='activo'?!sancSt(p.k):pf==='sanc'?!!sancSt(p.k):p.tipo===pf)));
+ return `<h2>${title}</h2>${SANC_NOTE}<input id="pq" placeholder="🔍 Buscar nombre, correo o teléfono" value="${esc(pq)}" oninput="pq=this.value;const c=this.selectionStart;render();$('#pq').focus();$('#pq').setSelectionRange(c,c)">
+ <div class="chips">${[['todos','Todos'],['activo','Activos'],['sanc','Sancionados']].concat(t==='cli'?[['Cuenta','Cuentas'],['Invitado','Invitados']]:[]).map(([v,l])=>`<span class="chip ${pf===v?'on':''}" onclick="pf='${v}';render()">${l}</span>`).join('')}</div>
+ ${L.map(p=>`<div class="card store" onclick="pKey='${esc(p.k).replace(/'/g,"\\'")}';go('persona')"><div class="row"><b>${esc(p.n)}</b>${stLabel(p.k)}</div><div class="muted">${p.tipo!=='Repartidor'&&p.tipo!=='Dueño'?`<span class="tag">${p.tipo}</span> `:''}${esc(p.sub)} · ${ordersOf(p.k).length} pedidos</div></div>`).join('')||'<p class="muted">Sin resultados.</p>'}
+ ${t==='cli'?`<div class="card"><h3>Bloquear un teléfono de invitado</h3><input id="bph" type="tel" inputmode="tel" placeholder="10 dígitos"><button class="btn sec sm" onclick="const p=$('#bph').value.replace(/\\D/g,'');if(p.length!==10)return toast('10 dígitos');pKey='inv:'+p;go('persona')">Abrir y sancionar</button></div>`:''}`}
+function sancionar(){const k=pKey,acc=$('#sacc').value,mot=$('#smot').value,nota=$('#snota').value.trim();if(!mot)return toast('Elige un motivo');if(mot==='Otro'&&!nota)return toast('Escribe la nota del motivo');
+ let dias=null,hasta=null;if(acc==='Suspender'){dias=$('#sdias').value==='custom'?+$('#sdc').value:+$('#sdias').value;if(!(dias>0))return toast('Días de suspensión no válidos');hasta=Date.now()+dias*864e5}
+ if(acc==='Dar de baja'&&!confirm('¿Dar de baja DEFINITIVA a '+kId(k)+'? Esto bloquea su acceso.'))return;
+ DB.sanc[k]=acc==='Advertencia'?(DB.sanc[k]||{st:'activo'}):acc==='Reactivar'?{st:'activo'}:{st:acc==='Suspender'?'suspendido':'baja',hasta,mot,nota};
+ DB.audit.push({t:Date.now(),key:k,acc:acc+(dias?` (${dias} días)`:''),mot,nota});save();toast('Registrado: '+acc);render()}
+const sancForm=()=>`<div class="card"><h3>⚖️ Aplicar sanción</h3><label>Acción</label><select class="f" id="sacc" onchange="$('#sdw').style.display=this.value==='Suspender'?'block':'none'"><option>Advertencia</option><option>Suspender</option><option>Dar de baja</option><option>Reactivar</option></select>
+ <div id="sdw" style="display:none"><label>Duración</label><select class="f" id="sdias" onchange="$('#sdc').style.display=this.value==='custom'?'block':'none'"><option value="1">1 día</option><option value="3">3 días</option><option value="7">7 días</option><option value="30">30 días</option><option value="custom">Personalizado…</option></select><input id="sdc" type="number" placeholder="Días" style="display:none;margin-top:6px"></div>
+ <label>Motivo (obligatorio)</label><select class="f" id="smot"><option value="">— Elige un motivo —</option>${MOTIVOS.map(m=>`<option>${m}</option>`).join('')}</select><label>Nota</label><textarea id="snota" placeholder="Detalles de lo que pasó"></textarea><button class="btn" onclick="sancionar()">Aplicar</button></div>`;
+const auditRow=a=>`<div class="line"><div class="row"><b>${esc(a.acc)}</b><span class="muted">${fdt(a.t)}</span></div><div class="muted">${esc(a.key.replace(/^cli:|^inv:|^rep:|^due:/,m=>({'cli:':'Cliente ','inv:':'Invitado ','rep:':'Repartidor ','due:':'Dueño '})[m]))}${a.mot?' · Motivo: '+esc(a.mot):''}${a.nota?' · '+esc(a.nota):''}${a.ej?' <span class="tag ex">EJEMPLO</span>':''}</div></div>`;
+const qCard=q=>`<div class="card"><div class="row"><b>📣 ${esc(q.tipo)}</b><span class="tag ${q.st==='Resuelta'?'ok':q.st==='Nueva'?'bad':'ex'}">${q.st}</span></div><div class="muted">Pedido #${q.orderId} · ${fdt(q.t)}${q.ej?' · <span class="tag ex">EJEMPLO</span>':''}</div><p>${esc(q.txt)}</p><div class="muted">Repartidor: ${esc(q.rep||'—')} · Cliente: ${esc(kId(q.cli))}</div>
+ <div class="chips">${['Nueva','En revisión','Resuelta'].map(s=>`<span class="chip ${q.st===s?'on':''}" onclick="DB.quejas.find(x=>x.id===${q.id}).st='${s}';save();render()">${s}</span>`).join('')}</div>
+ ${q.rep?`<button class="btn sm" onclick="pKey='rep:${esc(q.rep)}';go('persona')">⚖️ Sancionar repartidor</button>`:''}<button class="btn sec sm" onclick="pKey='${esc(q.cli)}';go('persona')">👤 Ver cliente</button></div>`;
+const D={
+ home:()=>{const O=DB.orders,dn=O.filter(o=>done(o)&&!o.cancel),cl=clientes(),fee=a=>a.reduce((s,o)=>s+o.fee,0),ok=O.filter(o=>!o.cancel),ef=ok.filter(o=>o.pago==='efectivo'),tj=ok.filter(o=>o.pago==='tarjeta');
+  const st=(v,l)=>`<div class="card stat"><b>${v}</b>${l}</div>`;
+  return `<h2>Panel directivo</h2>${SANC_NOTE}<div class="grid">${st(O.length,'Pedidos')+st(cl.length,`Clientes<br><span class="muted">${cl.filter(c=>c.tipo==='Cuenta').length} cuentas · ${cl.filter(c=>c.tipo==='Invitado').length} invitados</span>`)+st(DB.reps.length,'Repartidores')+st(DB.duenos.length,'Dueños')
+  +st(dn.filter(o=>!isLate(o)).length,'✅ A tiempo')+st(dn.filter(isLate).length,`⏰ Tarde (>${lateMin()} min)`)+st(DB.quejas.length,`📣 Quejas (${DB.quejas.filter(q=>q.st!=='Resuelta').length} abiertas)`)+st(O.filter(o=>o.cancel).length,'❌ Cancelaciones')
+  +st(mx(fee(ef)),'💵 Comisiones efectivo')+st(mx(fee(tj)),'💳 Comisiones tarjeta')+st(O.filter(overch).length,'⚠️ Cobros de más')+st(Object.keys(DB.sanc).filter(sancSt).length,'⛔ Sancionados')}</div>
+  <div class="card"><h3>Actividad reciente</h3>${DB.audit.slice(-3).reverse().map(auditRow).join('')||'<p class="muted">Sin sanciones.</p>'}</div>`},
+ cli:()=>listView('cli','Clientes'),rep:()=>listView('rep','Repartidores'),due:()=>listView('due','Dueños'),
+ persona:()=>{const k=pKey,t=kType(k),x=sancSt(k),p=people(t==='inv'?'cli':t).find(z=>z.k===k)||{n:kId(k),sub:''},A=t==='cli'?accts()[kId(k)]:null,O=ordersOf(k).sort((a,b)=>b.t-a.t);
+  return `<button class="btn sec sm" style="margin:0 0 8px" onclick="go('${t==='inv'?'cli':t}')">← Volver</button><h2>${esc(p.n)}</h2>${SANC_NOTE}
+  <div class="card"><div class="row"><span class="tag">${({cli:'Cliente con cuenta',inv:'Cliente invitado',rep:'Repartidor',due:'Dueño'})[t]}</span>${stLabel(k)}</div>${x?`<div class="warn">${sancMsg(x).replace('Tu cuenta','Cuenta')}${x.nota?' · '+esc(x.nota):''}</div>`:''}
+  ${A?`<div class="muted">📧 ${esc(A.email)} · 📞 <a href="tel:${A.tel}">${A.tel}</a><br>📍 ${A.dirs.map(d=>esc(dirTxt(d))).join(' / ')}<br>Alta: ${fdt(A.creado||Date.now())}</div>`:t==='inv'?`<div class="muted">📞 <a href="tel:${esc(kId(k))}">${esc(kId(k))}</a></div>`:''}</div>
+  <div class="grid">${metrics(k).map(([l,v])=>`<div class="card stat"><b>${v}</b>${l}</div>`).join('')}</div>
+  ${sancForm()}
+  <div class="card"><h3>Notas internas</h3><textarea id="pnote">${esc((DB.notes||{})[k]||'')}</textarea><button class="btn sec sm" onclick="DB.notes=DB.notes||{};DB.notes[pKey]=$('#pnote').value;save();toast('Nota guardada')">Guardar nota</button></div>
+  <div class="card"><h3>Historial de sanciones</h3>${DB.audit.filter(a=>a.key===k).reverse().map(auditRow).join('')||'<p class="muted">Sin sanciones.</p>'}</div>
+  <h3>Pedidos</h3>${t==='due'?'<p class="muted">Ver pedidos en el resumen.</p>':O.map(o=>card(o)).join('')||'<p class="muted">Sin pedidos.</p>'}`},
+ quejas:()=>{const L=DB.quejas.slice().sort((a,b)=>b.t-a.t).filter(q=>pf==='todos'||!['Nueva','En revisión','Resuelta'].includes(pf)||q.st===pf);return `<h2>Quejas</h2>${SANC_NOTE}<div class="chips">${['todos','Nueva','En revisión','Resuelta'].map(v=>`<span class="chip ${pf===v?'on':''}" onclick="pf='${v}';render()">${v==='todos'?'Todas':v}</span>`).join('')}</div>${L.map(qCard).join('')||'<p class="muted">Sin quejas.</p>'}`},
+ mas:()=>`<h2>Bitácora y ajustes</h2>${SANC_NOTE}<div class="card"><h3>📜 Bitácora de auditoría</h3>${DB.audit.slice().reverse().map(auditRow).join('')||'<p class="muted">Vacía.</p>'}</div>
+  <div class="card"><h3>Ajustes</h3><label>Minutos para marcar un pedido como tarde</label><input id="xmin" type="number" value="${lateMin()}" onchange="DB.dirCfg.tarde=+this.value||60;save();toast('Guardado')"></div>
+  <div class="card"><h3>Dueños</h3>${DB.duenos.map(d=>`<div>${esc(d)}</div>`).join('')}<div class="muted">El panel /dueno/ de este celular corresponde a "${esc(DB.duenos[0])}".</div><input id="ndue" placeholder="Nombre" style="margin-top:6px"><button class="btn sec sm" onclick="const n=$('#ndue').value.trim();if(n){DB.duenos.push(n);save();render()}">➕ Agregar dueño</button></div>
+  <div class="card"><h3>Contraseña del directivo</h3><label>Actual</label><input id="op" type="password"><label>Nueva</label><input id="np" type="password"><button class="btn sec" onclick="ownChange()">Cambiar contraseña</button><button class="btn sec" onclick="logout()">Cerrar sesión</button></div>`
+};
 const A={
  home:()=>{const h=DB.orders.filter(o=>o.d===today()),sum=a=>a.reduce((s,o)=>s+o.fee,0),ef=h.filter(o=>o.pago==='efectivo'),tj=h.filter(o=>o.pago==='tarjeta');
  return `<h2>Resumen de hoy</h2><div class="grid"><div class="card stat"><b>${h.length}</b>Pedidos</div><div class="card stat"><b>${h.filter(done).length}</b>Entregados</div>
