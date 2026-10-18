@@ -45,3 +45,6 @@ nav button{flex:1;border:0;background:none;padding:10px 4px;font-size:12px;color
 .chk{display:flex;gap:8px;align-items:flex-start;font-weight:600}.chk input{width:22px;height:22px;flex:none;margin-top:1px}
 .aviso{max-height:180px;overflow-y:auto;font-size:13px;color:#334155;background:#f8fafc;border-radius:10px;padding:10px;line-height:1.45}.rules{padding-left:18px;margin:4px 0}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;margin-top:8px}.kv span{color:#64748b}.regban.rej{border:2px solid #fecaca}
+.erow{display:grid;grid-template-columns:1.7fr 1fr .6fr 1fr;gap:6px;align-items:center;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13px}.erow>*:not(:first-child){text-align:right}.erow.eh{font-weight:700;color:#64748b;font-size:12px}
+.big{font-size:30px;font-weight:800;color:#0f766e;margin:4px 0}.net{font-size:20px;font-weight:800;color:#0f766e;background:#ecfdf5;border-radius:12px;padding:10px;text-align:center;margin:10px 0 6px}.net.neg{color:#991b1b;background:#fee2e2}.negt{color:#991b1b}
+.kv.pay b{text-align:right}.okmsg{color:#166534;font-size:13px;font-weight:600;margin-top:4px}
