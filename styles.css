@@ -31,3 +31,9 @@ nav button{flex:1;border:0;background:none;padding:10px 4px;font-size:12px;color
 .profbtn{border:0;border-radius:99px;padding:6px 12px;font-weight:700;background:#fff;color:#0f766e;max-width:140px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.err{color:#b91c1c;font-size:13px;font-weight:600;margin-top:8px}.row input{flex:1}
 .tag.bad{background:#fee2e2;color:#991b1b}nav button{min-width:0}
 .stat.tap{position:relative;cursor:pointer;border:1px solid #ddd6fe;transition:transform .08s,background .08s;-webkit-tap-highlight-color:transparent}.stat.tap:active{transform:scale(.97);background:#f5f3ff}.stat.tap .ver{display:block;margin-top:6px;font-size:12px;font-weight:700;color:#6d28d9}
+.msgs{max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:10px 2px;margin-top:8px;background:#f8fafc;border-radius:12px}
+.msg{max-width:85%;padding:8px 10px;border-radius:14px;font-size:14px;background:#e2e8f0;align-self:flex-start;word-wrap:break-word}.msg.mine{align-self:flex-end;background:#ccfbf1}
+.msg.sys{align-self:center;background:#fef3c7;color:#92400e;font-size:13px;text-align:center}.msg.na{border:2px solid #f59e0b;background:#fffbeb}
+.msg .who{font-size:11px;font-weight:700;color:#64748b;margin-bottom:2px}.msgs .empty{text-align:center;width:100%}
+.chips.qr{flex-wrap:wrap;overflow:visible}.chips.qr .chip{white-space:normal;background:#ecfdf5;color:#0f766e;border:1px solid #99f6e4}.na-btns .btn.sm{margin:6px 6px 0 0}
+.chatd summary{cursor:pointer;font-weight:700;padding:10px 0 4px;color:#0f766e}.chatd .card{box-shadow:none;padding:6px 0;margin:0}
