@@ -239,6 +239,19 @@ with sync_playwright() as pw:
     ck(pt.locator('#nprint').count()==1,'print button')
     pt.emulate_media(media='print');ck(not pt.locator('#nprint').is_visible() and pt.locator('#nota').is_visible(),'print CSS hides controls');pt.emulate_media(media='screen')
     pt.evaluate("$('#toast').style.display='none'");pt.screenshot(path='shots/tienda_nota.png',full_page=True)
+    # nota: no logistics charges (envío, zona, servicio, repartidor, margen, total del cliente)
+    Ofull=pt.evaluate("O(%d)"%oid);fee=Ofull.get('fee') or 0
+    keep=[i for k,i in enumerate(Ofull['det']['items']) if not i.get('quit') and i.get('surt')=='ok']
+    cliTot=round(sum(i['p']*i['q'] for i in keep)+fee,2);cliSub=round(sum(i['p']*i['q'] for i in keep),2)
+    repG=pt.evaluate("r2(%s*repPct()/100)"%fee)
+    share=pt.evaluate("notaText(O(%d),myStore())"%oid)
+    bad=['nv\u00edo','Envio','Env\u00edo','Zona','zona','Servicio','servicio','Log\u00edstica','Repartidor gana','Ganancia','Margen','margen','IVA','Total del cliente','Cliente paga']
+    for txt,lab in ((nt,'screen'),(share,'share')):
+        ck(not any(w in txt for w in bad),'nota %s: no logistics words'%lab)
+        ck(not any(mxs(v) in txt for v in (fee,cliTot,cliSub,repG) if v and abs(v-exp)>0.001),'nota %s: no fee/client total/rep earnings amounts'%lab)
+        ck(mxs(exp) in txt and all(i['n'] in txt and mxs(i['pc']) in txt for i in keep),'nota %s: store products, unit price and store total'%lab)
+    rows=pt.locator('.ntab tbody tr').count();ck(rows==len(keep),'nota: only store product rows (%d)'%rows)
+    pt.evaluate("scrollTo(0,0);$('#toast').style.display='none'");pt.screenshot(path='shots/tienda_nota_v2.png',full_page=True)
     # repartidor
     pr=mkpage(ctx,'rep12');pr.set_viewport_size({'width':390,'height':844});pr.goto(NEW+'repartidor/')
     pr.evaluate("h=>localStorage.setItem('rep_local',JSON.stringify({name:'Juan (ejemplo)',hash:h}))",PIN);pr.reload();pr.wait_for_timeout(300)
@@ -250,7 +263,8 @@ with sync_playwright() as pw:
     pr.wait_for_timeout(700);pr.evaluate("adv(%d);adv(%d);oSel=%d;go('pedido')"%(oid,oid,oid));pr.wait_for_timeout(300)
     rt=pr.inner_text('#app')
     ck('Listo para recoger' in rt and folio in rt,'rep sees Listo para recoger + folio')
-    ck(mxs(exp) not in rt and 'Tu precio' not in rt and pr.locator('#tkm').count()==0 and pr.locator('#tknota').count()==1,'rep: no purchase total; amount comes from nota')
+    ck(pr.locator('#tknotatot').count()==1 and pr.inner_text('#tknotatot').strip()==mxs(exp)+' MXN','rep pickup: shows nota total (store price)')
+    ck('Tu precio' not in rt and 'Margen' not in rt and 'margen' not in rt and pr.locator('#tkm').count()==0 and pr.locator('#tknota').count()==1,'rep: no margin/price comparison; amount comes from nota')
     pr.evaluate("$('#toast').style.display='none'");pr.screenshot(path='shots/rep_listo_recoger.png',full_page=True)
     # store confirms handoff, then rep confirms with photo of nota
     pt.wait_for_timeout(500);pt.evaluate("render()");pt.click('#tentr');pt.wait_for_timeout(300)
@@ -262,6 +276,7 @@ with sync_playwright() as pw:
     ck(pr.evaluate("O(%d).st"%oid)==3 and pr.evaluate("!!O(%d).recog.rep"%oid),'rep confirm: en camino + recog.rep')
     ck(pr.evaluate("crStat(1).T.some(o=>o.id===%d)"%oid),'credit charged to store 1')
     pt.wait_for_timeout(700);pt.evaluate("go('cred')");pt.wait_for_timeout(300);ck(('Ticket del pedido #%d'%oid) in pt.inner_text('#app'),'tablet estado de cuenta shows ticket')
+    cr=pt.inner_text('#app');ck(not any(w in cr for w in ('nv\u00edo','Zona','Servicio','Margen','Repartidor gana')) and ('+ '+mxs(exp)) in cr,'tablet estado de cuenta: store nota amount only, no logistics')
     # client: pedido recogido
     pc.wait_for_timeout(700);pc.evaluate("track=%d;go('track')"%oid);pc.wait_for_timeout(300)
     bt=pc.inner_text('#recogban') if pc.locator('#recogban').count() else ''
