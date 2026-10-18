@@ -2,12 +2,14 @@
 const WA='523190000000'; // EJEMPLO: cambiar por el WhatsApp real del negocio
 const ST=['Recibido','En camino a la tienda','Comprando','En camino','Entregado'];
 const STP=['Recibido','Recolectando','En camino','Entregado']; // paquetes
-const CATS={abarrotes:['🛒','Abarrotes'],farmacia:['💊','Farmacia'],paquetes:['📦','Paquetes chicos'],servicios:['🧾','Pago de servicios']};
+const CATS={abarrotes:['🛒','Abarrotes'],farmacia:['💊','Farmacia'],paquetes:['📦','Paquetes chicos'],servicios:['🧾','Pago de servicios (ya no disponible)']}; // servicios: solo para mostrar pedidos antiguos
+const ACTIVE=['abarrotes','farmacia','paquetes']; // servicios que se pueden pedir
+const ACATS=()=>Object.entries(CATS).filter(([k])=>ACTIVE.includes(k));
 const $=s=>document.querySelector(s), mx=n=>'$'+Number(n||0).toFixed(2)+' MXN';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const today=()=>new Date().toISOString().slice(0,10);
 
-const SV=8; // versión de datos (v8: recolección con ticket, crédito con tiendas, descuento de efectivo semanal)
+const SV=9; // versión de datos (v9: se quita 'Pago de servicios'; v8: recolección con ticket, crédito con tiendas, descuento de efectivo semanal)
 const mkP=(arr)=>arr.map((x,i)=>({id:i+1,n:x[0],pres:x[1],p:x[2],sec:x[3],e:x[4],disp:1}));
 const AB=[['Tortillas de maíz','1 kg',24,'Básicos','🫓'],['Frijol negro','1 kg',38,'Básicos','🫘'],['Arroz','1 kg',32,'Básicos','🍚'],['Azúcar estándar','1 kg',34,'Básicos','🍬'],['Aceite vegetal','900 ml',42,'Básicos','🫗'],['Huevo blanco','12 pzas',48,'Básicos','🥚'],['Sal de mesa','1 kg',14,'Básicos','🧂'],['Pasta para sopa','200 g',12,'Básicos','🍝'],['Leche entera','1 L',29,'Lácteos','🥛'],['Queso fresco','400 g',62,'Lácteos','🧀'],['Crema','450 ml',39,'Lácteos','🥣'],['Pan de caja blanco','680 g',52,'Panadería','🍞'],['Refresco de cola','2 L',38,'Bebidas','🥤'],['Agua purificada','garrafón 20 L',40,'Bebidas','💧'],['Café soluble','120 g',68,'Bebidas','☕'],['Jitomate','1 kg',30,'Frutas y verduras','🍅'],['Cebolla blanca','1 kg',26,'Frutas y verduras','🧅'],['Plátano','1 kg',22,'Frutas y verduras','🍌'],['Limón','1 kg',35,'Frutas y verduras','🍋'],['Papel higiénico','4 rollos',36,'Limpieza','🧻'],['Detergente en polvo','1 kg',45,'Limpieza','🧼'],['Cloro','1 L',18,'Limpieza','🧴']];
 const FA=[['Paracetamol','500 mg, 10 tabletas',35,'Dolor y fiebre','💊'],['Ibuprofeno','400 mg, 10 tabletas',45,'Dolor y fiebre','💊'],['Naproxeno','250 mg, 20 tabletas',55,'Dolor y fiebre','💊'],['Antigripal','12 cápsulas',79,'Gripa y tos','🤧'],['Jarabe para la tos','120 ml',95,'Gripa y tos','🍯'],['Pastillas para garganta','12 pzas',38,'Gripa y tos','🍬'],['Antiácido','12 tabletas masticables',42,'Estómago','🫃'],['Suero oral','500 ml',28,'Estómago','🧃'],['Loperamida','2 mg, 12 tabletas',48,'Estómago','💊'],['Loratadina','10 mg, 10 tabletas',59,'Alergias','🌼'],['Alcohol etílico','250 ml',32,'Botiquín','🧴'],['Gasas estériles','10 pzas',30,'Botiquín','🩹'],['Curitas','20 pzas',35,'Botiquín','🩹'],['Agua oxigenada','230 ml',22,'Botiquín','🫧'],['Termómetro digital','1 pza',89,'Botiquín','🌡️'],['Pañales etapa 3','40 pzas',249,'Bebé','👶'],['Toallitas húmedas','80 pzas',45,'Bebé','🧻'],['Cubrebocas','10 pzas',30,'Cuidado personal','😷'],['Repelente de mosquitos','200 ml',89,'Cuidado personal','🦟'],['Bloqueador solar FPS 50','120 ml',179,'Cuidado personal','☀️']];
@@ -17,14 +19,21 @@ function seedStores(){const v=(arr,f)=>mkP(arr.map(x=>[x[0],x[1],Math.round(x[2]
  {id:3,cat:'abarrotes',n:'Tiendita Don Pepe (ejemplo)',tipo:'Tienda de barrio',col:'Col. Ejidal',hor:'6:30 – 21:30',act:1,prods:v(AB.slice(0,18),1.05)},
  {id:4,cat:'farmacia',n:'Farmacia Salud Total (ejemplo)',tipo:'Farmacia',col:'Col. Centro',hor:'8:00 – 23:00',act:1,prods:v(FA,1)},
  {id:5,cat:'farmacia',n:'Farmacia Bienestar (ejemplo)',tipo:'Farmacia de barrio',col:'Col. Revolución',hor:'9:00 – 21:00',act:1,prods:v(FA,0.95)}]}
-function seed(){const d=seed0();addV4(d);addV5(d);addV6(d);addV7(d);addV8(d);d.v=SV;return d}
+function seed(){const d=seed0();addV4(d);addV5(d);addV6(d);addV7(d);addV8(d);addV9(d);d.v=SV;return d}
+const EJ1003={de:'Col. Lázaro Cárdenas (ejemplo)',a:'Col. Centro (ejemplo)',tam:'Chico (sobre/caja de zapatos)'};
+const EJ906={storeId:2,tienda:'Minisúper El Ahorro (ejemplo)',extra:'',extraEst:0,items:[{n:'Queso fresco',pres:'400 g',p:60,q:1},{n:'Café soluble',pres:'120 g',p:65,q:1},{n:'Aceite vegetal',pres:'900 ml',p:40,q:1},{n:'Pan de caja blanco',pres:'680 g',p:50,q:1},{n:'Huevo blanco',pres:'12 pzas',p:46,q:1}]};
+// v8→v9: se quita 'Pago de servicios'. Los pedidos de EJEMPLO de ese tipo se convierten (1003 → paquete, 906 → abarrotes); los pedidos reales se conservan tal cual y se muestran como 'ya no disponible'.
+function addV9(d){d.cfg=d.cfg||{};delete d.cfg.comServ;{const c2=(d.credito||{})[2];if(c2&&c2.ej&&c2.lim===500)c2.lim=800} // la compra de ejemplo 906 ahora va al crédito de la tienda 2
+ (d.orders||[]).forEach(o=>{if(!o.ej||o.cat!=='servicios')return;
+ if(o.id===906){o.cat='abarrotes';o.det=JSON.parse(JSON.stringify(EJ906));o.fee=40;o.zona=1;if(o.pago==='efectivo'&&o.cobrado)o.cobradoMonto=301;if(o.compra)Object.assign(o.compra,{monto:261,kind:'tienda',store:2,tienda:EJ906.tienda,credito:true})}
+ else{const del=o.st>=3;o.cat='paquetes';o.det=o.id===1003?{...EJ1003}:{de:'Domicilio de ejemplo',a:'Col. Centro (ejemplo)',tam:'Chico (sobre/caja de zapatos)'};o.fee=40;o.zona=1;if(o.pagaCon)o.pagaCon=100;if(del)o.st=3;if(o.cobrado)o.cobradoMonto=40;if(o.compra)Object.assign(o.compra,{monto:0,kind:'paq',store:null,tienda:'',cubre:'',credito:false})}})}
 function seed0(){const t=Date.now();return{
- cfg:{zonas:[{n:'Centro',f:30},{n:'Colonias cercanas',f:40},{n:'Orillas / Ejidos',f:60}],comServ:15},
+ cfg:{zonas:[{n:'Centro',f:30},{n:'Colonias cercanas',f:40},{n:'Orillas / Ejidos',f:60}]},
  v:SV,stores:seedStores(),reps:['Juan (ejemplo)','Lupita (ejemplo)'],
  orders:[
  {id:1001,ej:1,cat:'abarrotes',det:{storeId:1,tienda:'Abarrotes La Esquina (ejemplo)',items:[{n:'Tortillas de maíz',pres:'1 kg',p:24,q:2},{n:'Leche entera',pres:'1 L',p:29,q:1},{n:'Huevo blanco',pres:'12 pzas',p:48,q:1}],extra:'',extraEst:0},dir:'Calle Morelos 120, Centro',tel:'3191234567',zona:0,fee:30,pago:'efectivo',pagaCon:500,st:1,rep:'Juan (ejemplo)',cobrado:0,t:t-3600e3,d:today()},
  {id:1002,ej:1,cat:'farmacia',det:{storeId:4,tienda:'Farmacia Salud Total (ejemplo)',items:[{n:'Paracetamol',pres:'500 mg, 10 tabletas',p:35,q:1}],extra:'',extraEst:0},dir:'Av. Juárez 45, Col. Centro',tel:'3197654321',zona:0,fee:30,pago:'tarjeta',st:4,rep:'Lupita (ejemplo)',cobrado:0,t:t-7200e3,d:today()},
- {id:1003,ej:1,cat:'servicios',det:{tipo:'CFE (luz)',ref:'123456789012',monto:450},dir:'Calle Hidalgo 8, Col. Lázaro Cárdenas',tel:'3195551122',zona:1,fee:55,pago:'efectivo',pagaCon:600,st:0,rep:'',cobrado:0,t:t-600e3,d:today()}],
+ {id:1003,ej:1,cat:'paquetes',det:EJ1003,dir:'Calle Hidalgo 8, Col. Lázaro Cárdenas',tel:'3195551122',zona:1,fee:40,pago:'efectivo',pagaCon:100,st:0,rep:'',cobrado:0,t:t-600e3,d:today()}],
  mine:[1001,1002,1003]}}
 let DB=JSON.parse(localStorage.getItem('mandados')||'null');
 if(DB&&DB.v===2){DB.v=3}
@@ -32,7 +41,8 @@ if(DB&&DB.v===3){addV4(DB);DB.v=4}
 if(DB&&DB.v===4){addV5(DB);DB.v=5}
 if(DB&&DB.v===5){addV6(DB);DB.v=6}
 if(DB&&DB.v===6){addV7(DB);DB.v=7}
-if(DB&&DB.v===7){addV8(DB);DB.v=8} // v7→v8: tickets de recolección, crédito con tiendas, efectivo se descuenta del pago semanal // v6→v7: pagos a repartidores (% del envío, cuentas bancarias, efectivo, pagos semanales)
+if(DB&&DB.v===7){addV8(DB);DB.v=8}
+if(DB&&DB.v===8){addV9(DB);DB.v=9} // v8→v9: sin pago de servicios (no se borran datos reales) // v7→v8: tickets de recolección, crédito con tiendas, efectivo se descuenta del pago semanal // v6→v7: pagos a repartidores (% del envío, cuentas bancarias, efectivo, pagos semanales)
  // v5→v6: registro de repartidores; Juan y Lupita (ejemplo) quedan verificados // v4→v5: agrega chat a cada pedido sin borrar datos // v3→v4: agrega directivo sin borrar datos // v2→v3: conserva tiendas, productos, zonas, repartidores
 if(!DB||DB.v!==SV){const n=seed();if(DB){n.cfg=DB.cfg||n.cfg;n.reps=DB.reps||n.reps;if(DB.regs)n.regs=Object.assign(n.regs||{},DB.regs);const old=(DB.orders||[]).filter(o=>!o.ej&&o.det);n.orders=n.orders.concat(old);n.mine=n.mine.concat((DB.mine||[]).filter(id=>old.some(o=>o.id===id)))}DB=n;if(DB.cfg.repPct==null)DB.cfg.repPct=75}
 let lastRaw=null;const save=()=>{lastRaw=JSON.stringify(DB);localStorage.setItem('mandados',lastRaw)};save();
@@ -67,7 +77,7 @@ function setQ(id,d){cart[id]=Math.max(0,(cart[id]||0)+d);const e=document.getEle
 const cartBar=()=>{const n=cartCount();return n?`<button class="btn" style="margin:0" onclick="go('carrito')">🛒 Ver carrito (${n}) · ${mx(cartItems().reduce((a,i)=>a+i.p*i.q,0))}</button>`:''};
 function pickStore(id){if(shop!==id){cart={};}shop=id;secF='';q='';go('catalogo')}
 function storesView(c){const L=DB.stores.filter(s=>s.cat===c&&s.act);return `<h3>Elige la ${c==='farmacia'?'farmacia':'tienda'}</h3>`+(L.map(s=>`<div class="card store" onclick="pickStore(${s.id})"><div class="row"><b>${c==='farmacia'?'💊':'🏪'} ${esc(s.n)}</b><span class="tag">${s.prods.filter(p=>p.disp).length} productos</span></div><div class="muted">${esc(s.tipo)} · 📍 ${esc(s.col)}</div><div class="muted">🕒 ${esc(s.hor)}</div></div>`).join('')||'<p class="muted">No hay tiendas activas.</p>')}
-const catsBar=c=>`<h2>Nuevo pedido</h2><div class="grid" style="grid-template-columns:repeat(4,1fr)">${Object.entries(CATS).map(([k,[i,n]])=>`<div class="cat ${k===c?'sel':''}" style="padding:8px 2px;font-size:11px" onclick="sel='${k}';go('nuevo')"><span style="font-size:24px">${i}</span>${n}</div>`).join('')}</div>`;
+const catsBar=c=>`<h2>Nuevo pedido</h2><div class="grid" style="grid-template-columns:repeat(3,1fr)">${ACATS().map(([k,[i,n]])=>`<div class="cat ${k===c?'sel':''}" style="padding:8px 2px;font-size:11px" onclick="sel='${k}';go('nuevo')"><span style="font-size:24px">${i}</span>${n}</div>`).join('')}</div>`;
 function entrega(){const z=DB.cfg.zonas;return `<div class="card"><h3>Entrega</h3>${(()=>{const a=acct();if(a&&a.dirs.length)return `<label>Dirección guardada</label><select class="f" id="dsel" onchange="useDir(+this.value)">${a.dirs.map((d,i)=>`<option value="${i}">${esc(d.calle)}</option>`).join('')}</select>`;return isGuest()?'<div class="muted">Pedido como invitado: nombre, teléfono y dirección son obligatorios.</div>':''})()}
   <label>Nombre de quien recibe</label><input id="nom" value="${esc(acct()?.nombre||'')}"><label>Dirección de entrega</label><input id="dir" placeholder="Calle, número, colonia" value="${esc(acct()?.dirs[0]?dirTxt(acct().dirs[0]):'')}"><label>Teléfono</label><input id="tel" type="tel" inputmode="tel" placeholder="10 dígitos" value="${esc(acct()?.tel||'')}">
   <label>Zona</label><select class="f" id="zona" onchange="calc()">${z.map((x,i)=>`<option value="${i}" ${acct()?.dirs[0]?.zona==i?'selected':''}>${esc(x.n)} – ${mx(x.f)}</option>`).join('')}</select></div>
@@ -113,7 +123,7 @@ const AUTHNOTE='<div class="warn">Versión de prueba: las cuentas se guardan sol
 const pwField=(id,ph)=>`<div class="row"><input id="${id}" type="password" placeholder="${ph}" autocomplete="new-password"><button class="btn sec sm" style="margin:0" type="button" onclick="const e=$('#${id}');e.type=e.type==='password'?'text':'password';this.textContent=e.type==='password'?'👁️ Ver':'🙈 Ocultar'">👁️ Ver</button></div>`;
 const zonaSel=(id,v)=>`<select class="f" id="${id}">${DB.cfg.zonas.map((x,i)=>`<option value="${i}" ${v==i?'selected':''}>${esc(x.n)}</option>`).join('')}</select>`;
 const AV={
- auth:()=>`<div style="text-align:center;padding:20px 0"><div style="font-size:60px">🛵</div><h2>Bienvenido a Mandados Tuxpan</h2><p class="muted">Abarrotes, farmacia, paquetes y pago de servicios hasta tu puerta.</p></div>
+ auth:()=>`<div style="text-align:center;padding:20px 0"><div style="font-size:60px">🛵</div><h2>Bienvenido a Mandados Tuxpan</h2><p class="muted">Abarrotes, farmacia y paquetes hasta tu puerta.</p></div>
   <button class="btn" onclick="go('login')">Iniciar sesión</button><button class="btn sec" onclick="pre=null;go('signup')">Crear cuenta</button><button class="btn sec" onclick="localStorage.setItem(SESS,JSON.stringify({type:'guest'}));go('home')">Pedir como invitado</button>${sess()?'<button class="btn sec" onclick="go(\'home\')">← Volver</button>':''}${AUTHNOTE}`,
  login:()=>`<h2>Iniciar sesión</h2><div class="card"><label>Correo electrónico</label><input id="le" type="email" inputmode="email" autocomplete="email"><label>Contraseña</label>${pwField('lp','Tu contraseña')}<div id="lerr" class="err"></div>
   <button class="btn" onclick="doLogin()">Entrar</button><p style="text-align:center"><a href="#" onclick="$('#forgot').style.display='block';return false">¿Olvidaste tu contraseña?</a></p><div id="forgot" class="warn" style="display:none">La recuperación por correo funcionará cuando la app se conecte al servidor. Por ahora, crea una cuenta nueva en este celular.</div></div>
@@ -158,7 +168,7 @@ const isLate=o=>done(o)&&durMin(o)!==null&&durMin(o)>lateMin();
 const overch=o=>o.pago==='efectivo'&&o.cobrado&&o.cobradoMonto!=null&&o.cobradoMonto>total(o)+0.009;
 const C={
  home:()=>{const act=DB.orders.filter(o=>myOrd(o)&&!done(o));return `<h2>¡Hola! ¿Qué mandado necesitas hoy?</h2>
- <div class="grid">${Object.entries(CATS).map(([k,[i,n]])=>`<div class="cat" onclick="sel='${k}';go('nuevo')"><span>${i}</span>${n}</div>`).join('')}</div>
+ <div class="grid" style="grid-template-columns:repeat(3,1fr)">${ACATS().map(([k,[i,n]])=>`<div class="cat" onclick="sel='${k}';go('nuevo')"><span>${i}</span>${n}</div>`).join('')}</div>
  <h3 style="margin-top:16px">Pedidos activos</h3>${act.map(o=>card(o,`<button class="btn sm" onclick="track=${o.id};go('track')">Ver seguimiento y 💬 chat</button>`)).join('')||'<p class="muted">No tienes pedidos activos.</p>'}
  <a class="btn wa" style="text-align:center;text-decoration:none" href="https://wa.me/${WA}?text=${encodeURIComponent('Hola, quiero hacer un mandado')}" target="_blank">💬 Escríbenos por WhatsApp</a>`},
  catalogo:()=>{const st=store(shop);if(!st)return C.nuevo();const secs=[...new Set(st.prods.filter(p=>p.disp).map(p=>p.sec))];
@@ -174,10 +184,9 @@ const C={
   <div class="card"><h3>No encuentro mi producto / artículo extra</h3><textarea id="extra" oninput="cart._extra=this.value" placeholder="Ej: 1 bolsa de hielo, marca específica...">${esc(cart._extra||'')}</textarea><label>Precio estimado (MXN)</label><input id="extraEst" type="number" inputmode="decimal" value="${cart._est||''}" oninput="cart._est=this.value;calc()"><div class="muted">⚠️ Precio estimado, se confirma con el ticket de la tienda.</div>
   ${st.cat==='farmacia'?'<label>Foto de receta (opcional)</label><input id="receta" type="file" accept="image/*" capture="environment"><div class="muted">Los medicamentos controlados requieren receta médica.</div>':''}</div>
   ${entrega()}<button class="btn" onclick="crear()">Confirmar pedido</button>`},
- nuevo:()=>{const c=sel||'abarrotes';if((c==='abarrotes'||c==='farmacia'))return catsBar(c)+storesView(c);return C.otros()},
- otros:()=>{const c=sel||'abarrotes';if(c!=='paquetes'&&c!=='servicios')return C.nuevo();let f=''; // abarrotes y farmacia: solo catálogo de tiendas
+ nuevo:()=>{if(sel&&!ACTIVE.includes(sel))sel='abarrotes';const c=sel||'abarrotes';if((c==='abarrotes'||c==='farmacia'))return catsBar(c)+storesView(c);return C.otros()},
+ otros:()=>{const c=sel||'abarrotes';if(c!=='paquetes')return C.nuevo();let f=''; // abarrotes y farmacia: solo catálogo de tiendas
   if(c==='paquetes')f=`<label>Dirección de recolección</label><input id="de"><label>Dirección de entrega del paquete</label><input id="a"><label>Tamaño</label><select class="f" id="tam"><option>Chico (sobre/caja de zapatos)</option><option>Mediano (mochila)</option></select>`;
-  if(c==='servicios')f=`<label>Servicio</label><select class="f" id="tipo"><option>CFE (luz)</option><option>Agua (OROMAPAS)</option><option>Teléfono / Internet</option><option>Gas</option><option>Otro</option></select><label>Número de referencia / servicio</label><input id="ref" inputmode="numeric"><label>Monto a pagar (MXN)</label><input id="monto" type="number" inputmode="decimal" oninput="calc()"><div class="muted">Se suma la comisión por pago de ${mx(DB.cfg.comServ)}.</div>`;
   return catsBar(c)+`<div class="card">${f}</div>${entrega()}<button class="btn" onclick="crear()">Confirmar pedido</button>`},
 
  track:()=>{const o=DB.orders.find(x=>x.id===track);if(!o)return'';const s=steps(o);return `<h2>Seguimiento #${o.id}</h2>${card(o)}
@@ -189,25 +198,24 @@ const C={
  hist:()=>`<h2>Mis pedidos</h2>${acct()?'':'<p class="muted">Pedidos hechos como invitado en este celular.</p>'}`+DB.orders.filter(myOrd).sort((a,b)=>b.t-a.t).map(o=>card(o,`<button class="btn sm" onclick="track=${o.id};go('track')">${done(o)?'Ver detalle':'Ver seguimiento y 💬 chat'}</button>`)).join('')
 };
 function queja(id){const o=O(id),t=$('#qtxt').value.trim();if(!t)return toast('Describe el problema');DB.quejas.push({id:Math.max(0,...DB.quejas.map(q=>q.id))+1,orderId:id,tipo:$('#qtipo').value,txt:t,rep:o.rep,cli:cliKey(o),t:Date.now(),st:'Nueva'});save();toast('Gracias, revisaremos tu reporte');render()}
-function feeNow(){const z=DB.cfg.zonas[+($('#zona')?.value||0)];return z.f+((sel||'abarrotes')==='servicios'?DB.cfg.comServ:0)}
-function calc(){if(!$('#fee'))return;const f=feeNow(),cs=curSub(),m=((sel==='servicios')?Number($('#monto')?.value||0):0)+cs,p=document.querySelector('[name=pago]:checked').value;
+function feeNow(){const z=DB.cfg.zonas[+($('#zona')?.value||0)];return z.f}
+function calc(){if(!$('#fee'))return;const f=feeNow(),cs=curSub(),m=cs,p=document.querySelector('[name=pago]:checked').value;
  $('#fee').textContent=mx(f);$('#sub').textContent=mx(cs);$('#subrow').style.display=view==='carrito'?'flex':'none';$('#tot').textContent=mx(f+m);
  const px=$('#payx');if(px.dataset.p!==p){px.dataset.p=p;px.innerHTML=p==='efectivo'?`<label>¿Con cuánto pagará? (para llevar cambio)</label><input id="pagaCon" type="number" inputmode="decimal" placeholder="Ej: 500">`:
  `<div class="warn">⚠️ DEMO: no se hace ningún cargo real. No escribas datos reales de tarjeta.</div><label>Número de tarjeta</label><input placeholder="4242 4242 4242 4242" autocomplete="off"><div class="grid"><input placeholder="MM/AA"><input placeholder="CVV"></div>`}}
 function crear(){const c=sel||'abarrotes',v=id=>($('#'+id)?.value||'').trim();let det={};
  if(view==='carrito'){const st=store(shop),it=cartItems();if(!it.length&&!v('extra'))return toast('Agrega productos al carrito');
   det={storeId:st.id,tienda:st.n,items:it.map(i=>({n:i.n,pres:i.pres,p:i.p,q:i.q})),extra:v('extra'),extraEst:+v('extraEst')||0,receta:!!$('#receta')?.files.length}}else{
- if(c!=='paquetes'&&c!=='servicios')return toast('Elige una tienda y agrega productos del catálogo');
+ if(c!=='paquetes')return toast('Elige una tienda y agrega productos del catálogo');
  if(c==='paquetes')det={de:v('de'),a:v('a'),tam:v('tam')};
- if(c==='servicios')det={tipo:v('tipo'),ref:v('ref'),monto:+v('monto')};
  }
- const miss=det.items?false:(c==='paquetes'?!det.de||!det.a:c==='servicios'?!det.ref||!det.monto:true);
+ const miss=det.items?false:(c==='paquetes'?!det.de||!det.a:true);
  if(miss)return toast('Completa los datos del pedido');{const a=acct(),x=a?sancSt('cli:'+a.email):sancSt('inv:'+v('tel').replace(/\D/g,''));if(x)return toast(a?sancMsg(x):'Este número de teléfono está bloqueado. No puede pedir como invitado.')}if(!v('nom'))return toast('Escribe el nombre de quien recibe');if(!/^\d{10}$/.test(v('tel').replace(/\D/g,'')))return toast('Escribe un teléfono de 10 dígitos');if(!v('dir'))return toast('Escribe la dirección de entrega');
  const pago=document.querySelector('[name=pago]:checked').value;
  const o={id:Math.max(...DB.orders.map(x=>x.id),1000)+1,cat:c,det,dir:v('dir'),tel:v('tel'),zona:+v('zona'),fee:feeNow(),pago,pagaCon:pago==='efectivo'?+v('pagaCon')||0:0,st:0,rep:'',cobrado:0,t:Date.now(),ts:{0:Date.now()},d:today(),nombre:v('nom'),src:acct()?'cuenta':'invitado',email:acct()?.email||''};o.tel=o.tel.replace(/\D/g,'');
  DB.orders.push(o);DB.mine.push(o.id);save();if(det.items){cart={};shop=null}track=o.id;toast(pago==='tarjeta'?'Pedido enviado (pago demo, sin cargo)':'¡Pedido enviado!');go('track')}
 
-const R={home:()=>{const mine=DB.orders.filter(o=>o.rep===myRep&&!done(o)),av=DB.orders.filter(o=>!o.rep&&!done(o)),fin=DB.orders.filter(o=>o.rep===myRep&&done(o)&&o.d===today());
+const R={home:()=>{const mine=DB.orders.filter(o=>o.rep===myRep&&!done(o)),av=DB.orders.filter(o=>!o.rep&&!done(o)&&ACTIVE.includes(o.cat)),fin=DB.orders.filter(o=>o.rep===myRep&&done(o)&&o.d===today());
  const cash=fin.filter(o=>o.pago==='efectivo'&&o.cobrado).reduce((a,o)=>a+total(o),0);
  const sx=sancSt('rep:'+myRep),vok=repOk(myRep);return `${regBanner()}${sx?blockedView(sx,'Repartidor suspendido')+'<div class="warn">No puedes aceptar pedidos nuevos.</div>':''}<div class="card">${SYNC}<div class="row"><b>🛵 ${esc(myRep)} ${regTag(myRep)}</b><button class="btn sec sm" style="margin:0" onclick="logout()">Salir</button></div><div class="muted" style="margin-top:6px">Entregados hoy: ${fin.length} · Efectivo cobrado hoy: ${mx(cash)} (se descuenta de tu pago semanal)</div></div>
  <h3>Mis pedidos asignados</h3>${mine.map(o=>card(o,`<div class="muted">Estado actual: <b>${stName(o)}</b></div>${advBtn(o)}<button class="btn sec sm" onclick="oSel=${o.id};go('pedido')">💬 Chat${o.det.items?' y artículos':''}</button>`)).join('')||'<p class="muted">Sin pedidos asignados.</p>'}
@@ -330,7 +338,7 @@ const A={
  cfg:()=>`<h2>Tarifas y zonas</h2><div class="card"><h3>Envío por zona (MXN)</h3>${DB.cfg.zonas.map((z,i)=>`<div class="grid" style="grid-template-columns:2fr 1fr auto;margin-bottom:8px"><input value="${esc(z.n)}" onchange="DB.cfg.zonas[${i}].n=this.value;save()"><input type="number" value="${z.f}" onchange="DB.cfg.zonas[${i}].f=+this.value;save()"><button class="btn sec sm" style="margin:0" onclick="DB.cfg.zonas.length>1&&DB.cfg.zonas.splice(${i},1);save();render()">🗑️</button></div>`).join('')}
  <button class="btn sec sm" onclick="DB.cfg.zonas.push({n:'Nueva zona',f:50});save();render()">➕ Agregar zona</button>
  <div class="warn" id="cfgpct">💸 Pago a repartidores: <b>${repPct()}%</b> del costo de envío de cada pedido entregado. Solo el directivo puede cambiarlo.</div>
- <label>Comisión extra por pago de servicios</label><input type="number" value="${DB.cfg.comServ}" onchange="DB.cfg.comServ=+this.value;save()"><div class="muted">Valores de ejemplo, ajústalos a tus precios. Se guardan al salir del campo.</div></div>
+ <div class="muted">Valores de ejemplo, ajústalos a tus precios. Se guardan al salir del campo.</div></div>
  ${SYNC}<div class="card"><h3>Repartidores y PIN</h3>${DB.reps.map((r,i)=>`<div class="row" style="margin-bottom:6px"><span>${esc(r)} ${(DB.repPins||{})[r]?'🔒':''} ${regTag(r)}</span><span class="row"><input id="pin${i}" type="password" inputmode="numeric" maxlength="4" placeholder="PIN" style="width:80px"><button class="btn sec sm" style="margin:0" onclick="setPin(${i})">Guardar</button></span></div>`).join('')}<input id="nrep" placeholder="Nombre" style="margin-top:8px"><button class="btn sec sm" onclick="const n=$('#nrep').value.trim();if(n){DB.reps.push(n);save();render()}">➕ Agregar repartidor</button></div>
  <div class="card"><h3>Cambiar contraseña del dueño</h3><label>Contraseña actual</label><input id="op" type="password"><label>Nueva contraseña</label><input id="np" type="password"><button class="btn sec" onclick="ownChange()">Cambiar contraseña</button><button class="btn sec" onclick="logout()">Cerrar sesión</button></div>`
 };
@@ -539,7 +547,7 @@ function addV7(d){const now=Date.now(),H=36e5,last=o=>o.cat==='paquetes'?3:4;d.c
   mk(903,J,'paquetes',{de:'Centro (ejemplo)',a:'Col. Ejidal (ejemplo)',tam:'Chico (sobre/caja de zapatos)'},60,'efectivo',ls+4*24*H+10*H,60),
   mk(904,L,'abarrotes',{...AB2,items:[{n:'Arroz',pres:'1 kg',p:31,q:2}]},30,'efectivo',ls+24*H+12*H,92),
   mk(905,L,'farmacia',{...FA1,items:[{n:'Suero oral',pres:'500 ml',p:28,q:2}]},40,'tarjeta',ls+3*24*H+18*H),
-  mk(906,L,'servicios',{tipo:'CFE (luz)',ref:'000111222333',monto:300},55,'efectivo',ls+5*24*H+9*H,355),
+  mk(906,L,'abarrotes',JSON.parse(JSON.stringify(EJ906)),40,'efectivo',ls+5*24*H+9*H,301),
   mk(907,J,'abarrotes',{...AB1,items:[{n:'Frijol negro',pres:'1 kg',p:38,q:1},{n:'Azúcar estándar',pres:'1 kg',p:34,q:1}]},40,'efectivo',tw(4),112),
   mk(908,J,'paquetes',{de:'Col. Centro (ejemplo)',a:'Col. Revolución (ejemplo)',tam:'Mediano (mochila)'},60,'efectivo',tw(2.5),60));
  const bk=(n,banco,p)=>{if(!d.bank[n])d.bank[n]={titular:n,banco,clabe:mkClabe(p),foto:null,st:'verificada',nameOk:true,ej:1,t:now-20*24*H,rev:{t:now-19*24*H,por:'Ejemplo'}}};
@@ -633,16 +641,16 @@ A.pagos=pagosView;D.pagos=pagosView;A.pagorep=pagoRepView;D.pagorep=pagoRepView;
 const repPayCard=n=>{const b=bankOf(n),s=stmt(n,curWk());return `<div class="card" id="paycard"><div class="row"><h3 style="margin:0">💸 Pagos</h3>${bankTag(n)}</div><div class="muted" style="margin-top:6px">${b?esc(b.banco)+' '+last4(b.clabe):'Sin cuenta bancaria'} · Esta semana: ${s.L.length} entregas, ganancias ${mx(s.gan)} · ${netoTxt(s.neto)}</div><button class="btn sec sm" onclick="bkSel='${jsq(n)}';bkBack='persona';go('cuenta')">🏦 Revisar cuenta</button><button class="btn sec sm" onclick="prSel='${jsq(n)}';prBack='persona';pWk=null;go('pagorep')">💸 Ver pagos</button></div>`};
 // ================= RECOLECCIÓN CON TICKET Y CRÉDITO CON TIENDAS (v8) =================
 // Regla: el repartidor nunca paga de su bolsa. Las compras en tiendas asociadas se cargan al crédito que la empresa tiene con cada tienda;
-// los pagos de servicios los cubre la empresa. Al recoger, el repartidor sube la foto del ticket con el monto (obligatorio para continuar).
+// (pedidos antiguos de pago de servicios: los cubría la empresa). Al recoger, el repartidor sube la foto del ticket con el monto (obligatorio para continuar).
 // En pedidos con tarjeta el cliente ya pagó y el repartidor no cobra nada; en efectivo, lo que cobra se descuenta de su pago semanal.
 function addV8(d){const now=Date.now(),H=36e5;d.credito=d.credito||{};(d.stores||[]).forEach(s=>{if(!d.credito[s.id])d.credito[s.id]={lim:0,cargos:[],pagos:[]}});
  const st=id=>(d.stores||[]).find(s=>s.id===id&&/\(ejemplo\)/.test(s.n));
  const ini=(id,lim,monto,pag)=>{const c=d.credito[id];if(!c||!st(id)||c.ej)return;c.ej=1;if(!c.lim)c.lim=lim;if(monto&&!c.cargos.length)c.cargos.push({id:1,monto,t:now-21*24*H,nota:'Saldo inicial (ejemplo)',ej:1});if(pag&&!c.pagos.length)c.pagos.push({id:1,monto:pag,fecha:ymdF(now-10*24*H),folio:'EJ-TDA-0'+id,t:now-10*24*H,por:'Dueño',ej:1})};
- ini(1,2000,650,300);ini(2,500,330,0);ini(4,1500,380,200);ini(3,0,0,0);ini(5,0,0,0);
+ ini(1,2000,650,300);ini(2,800,330,0);ini(4,1500,380,200);ini(3,0,0,0);ini(5,0,0,0);
  const J='Juan (ejemplo)',L='Lupita (ejemplo)';
  if((d.reps||[]).includes(L)&&!(d.orders||[]).some(o=>o.id===909)){const t=wkStartF(wkAddF(wkOfF(now),-2))+2*24*H+16*H;
   d.orders.push({id:909,ej:1,cat:'farmacia',det:{storeId:4,tienda:'Farmacia Salud Total (ejemplo)',extra:'',extraEst:0,items:[{n:'Suero oral',pres:'500 ml',p:28,q:1}]},dir:'Domicilio de ejemplo, Tuxpan',tel:'3190000009',nombre:'Cliente (ejemplo)',src:'invitado',zona:0,fee:30,pago:'efectivo',pagaCon:0,st:4,rep:L,cobrado:1,cobradoMonto:58,t,ts:{0:t,4:t+35*6e4},d:new Date(t).toISOString().slice(0,10),chat:[],leido:{},pct:75})}
- const TK={901:106,902:35,904:62,905:56,906:300,907:84,909:28};
+ const TK={901:106,902:35,904:62,905:56,906:261,907:84,909:28};
  (d.orders||[]).forEach(o=>{if(!o.ej||o.compra||o.cancel)return;const rs=o.cat==='paquetes'?1:2;if(!(o.st>rs))return;const it=o.det.items,subt=it?it.reduce((a,i)=>a+(i.quit?0:i.p*i.q),0):0;
   const k=o.cat==='paquetes'?'paq':o.cat==='servicios'?'serv':'tienda',m=TK[o.id]??(k==='paq'?0:k==='serv'?Number(o.det.monto||0):subt);
   o.compra={monto:m,foto:null,t:(o.ts&&o.ts[rs+1]||o.t)-10*6e4,por:o.rep,kind:k,store:k==='tienda'?o.det.storeId:null,tienda:o.det.tienda||'',cubre:k==='paq'?'':o.pago==='efectivo'?'empresa':'cliente',credito:k==='tienda',ej:1}})}
