@@ -63,3 +63,5 @@ nav button{flex:1;border:0;background:none;padding:10px 4px;font-size:12px;color
 body.tienda .top{background:#ea580c}body.tienda .btn:not(.sec){background:#ea580c}body.tienda nav button.on{color:#ea580c}body.tienda .chip.on{background:#ea580c}body.tienda .qty button{background:#ea580c}
 @media (min-width:760px){body.tienda main{max-width:1180px;padding:18px 24px}body.tienda .tgrid{grid-template-columns:1fr 1fr}body.tienda .tcols{grid-template-columns:1fr 1fr 1fr;align-items:start}body.tienda .tcols.two{grid-template-columns:1fr 1fr}body.tienda .tlogin{max-width:520px;margin:20px auto}body.tienda nav{justify-content:center}body.tienda nav button{max-width:200px;font-size:14px}}
 @media (min-width:1000px){body.tienda .tgrid{grid-template-columns:1fr 1fr 1fr}}
+.sec2{background:#f8fafc;box-shadow:none;border:1px dashed #cbd5e1}.sec2 summary{font-size:13px}.tjrow{align-items:center}
+.pchg.pcbig{border-left:4px solid #ef4444;padding-left:8px}
