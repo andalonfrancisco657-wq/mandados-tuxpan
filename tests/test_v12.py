@@ -48,9 +48,12 @@ with sync_playwright() as pw:
     ck(p.locator('input[name=pago][value=efectivo]').count()==1 and p.locator('input[name=pago][value=tarjeta]').count()==1,'account w/o card: both options')
     ck('Registrar tarjeta de débito y pagar' in p.inner_text('#paybox'),'account w/o card: register-and-pay label')
     p.locator('#paybox').scroll_into_view_if_needed();p.evaluate("$('#toast').style.display='none'");p.screenshot(path='shots/cliente_pago_efectivo.png')
+    ck(p.locator('#senas').count()==1,'checkout has Señas del domicilio field')
+    p.fill('#senas','casa azul, portón negro')
+    p.locator('#senas').scroll_into_view_if_needed();p.evaluate("$('#toast').style.display='none'");p.screenshot(path='shots/cliente_senas.png')
     p.fill('#pagaCon','200');p.click('button:has-text("Confirmar pedido")')
     p.wait_for_timeout(300)
-    o=p.evaluate("DB.orders[DB.orders.length-1]");ck(o['pago']=='efectivo' and o['src']=='cuenta','cash order placed by no-card account')
+    o=p.evaluate("DB.orders[DB.orders.length-1]");ck(o['pago']=='efectivo' and o['src']=='cuenta','cash order placed by no-card account');ck(o.get('senas')=='casa azul, portón negro','señas saved on order');CASHID=o['id']
     # register card
     p.evaluate("tjBack='perfil';go('perfil')");p.wait_for_timeout(200)
     ck(p.locator('#btarj').count()==1,'perfil has Mis tarjetas button')
@@ -104,7 +107,34 @@ with sync_playwright() as pw:
     txt=p.inner_text('#app')
     ck('💳 Pagado con tarjeta – no cobres nada' in txt,'rep: card hint')
     ck('se descuenta de tu pago semanal, ese dinero es tuyo' in txt and '💵 Cobra $' in txt,'rep: cash hint')
-    p.screenshot(path='/tmp/v12/rep.png',full_page=True)
+    import re as _re
+    p.evaluate("DB.orders.filter(o=>!done(o)&&!o.rep).forEach(o=>o.rep=myRep);save();render()");p.wait_for_timeout(300)
+    cards=p.evaluate("[...document.querySelectorAll('.repcard')].map(e=>({id:+e.dataset.rc,t:e.innerText,pago:O(+e.dataset.rc).pago,tot:mx(total(O(+e.dataset.rc))),pc:O(+e.dataset.rc).pagaCon,done:done(O(+e.dataset.rc))}))")
+    bad=[]
+    for c in cards:
+        am=_re.findall(r'\$[\d,]+(?:\.\d+)?',c['t'])
+        allowed=set()
+        if c['pago']=='efectivo':
+            allowed={_re.findall(r'\$[\d,]+(?:\.\d+)?',c['tot'])[0]}
+            if c['pc']: allowed|=set(_re.findall(r'\$[\d,]+(?:\.\d+)?',p.evaluate("mx(%d)"%c['pc'])))
+        if c['done']: allowed|=set(am) if 'Tu ganancia' in c['t'] else set()
+        extra=[a for a in am if a not in allowed]
+        if extra or 'Total' in c['t'].replace('Salud Total','') or 'Productos:' in c['t'] or 'Envío' in c['t']: bad.append((c['id'],extra))
+    ck(len(cards)>=3 and not bad,'rep DOM: no item prices/totals except cash amount %s'%bad)
+    ck(p.locator('.repcard[data-rc="%d"] .repsenas'%CASHID).count()==1 and 'casa azul, portón negro' in p.inner_text('.repcard[data-rc="%d"]'%CASHID),'señas flow client → repartidor')
+    ck(p.locator('.repcard[data-rc="%d"] .maplink'%CASHID).count()==1,'rep: map link')
+    ct=p.inner_text('.repcard[data-rc="%d"]'%CASHID);ck('💵 Cobra $' in ct and 'Francisco Prueba' in ct and '3191234567' in ct,'rep cash card: cobra + name + phone')
+    p.locator('.repcard[data-rc="%d"]'%CASHID).scroll_into_view_if_needed();p.evaluate("$('#toast').style.display='none'");p.screenshot(path='shots/rep_pedido_efectivo.png')
+    tj=[c['id'] for c in cards if c['pago']=='tarjeta' and not c['done']][0]
+    p.evaluate("oSel=%d;go('pedido')"%tj);p.wait_for_timeout(300);t2=p.inner_text('#app')
+    ck('Pagado con tarjeta' in t2 and '$' not in t2,'rep card order detail: no $ anywhere')
+    p.evaluate("$('#toast').style.display='none'");p.screenshot(path='shots/rep_pedido_sin_precios.png',full_page=True)
+    # quitar flow: rep doesn't see Total actualizado, cobra updates
+    p.evaluate("oSel=%d;go('pedido')"%CASHID);p.wait_for_timeout(200)
+    before=p.evaluate("mx(total(O(%d)))"%CASHID)
+    p.evaluate("markNA(%d,0)"%CASHID);p.evaluate("const o=O(%d);myRep0=myRep;o.det.items[0].res='quitar';o.det.items[0].quit=1;o.chat.push({id:99,de:'cli',who:'x',t:Date.now(),txt:'Se quitó X del pedido. Total actualizado: $1.00 (antes $2.00).',kind:'sys',cli:1});save();render()"%CASHID);p.wait_for_timeout(200)
+    t3=p.inner_text('#app');after=p.evaluate("mx(total(O(%d)))"%CASHID)
+    ck('Total actualizado' not in t3 and ('Cobra '+after) in t3 and after!=before,'rep: no Total actualizado, Cobra updated')
     p.evaluate("go('gan')");p.wait_for_timeout(200);ck('Ganancias' in p.inner_text('#app'),'rep ganancias renders')
     ctx.close()
     # ---- dueño / directivo
@@ -263,7 +293,7 @@ with sync_playwright() as pw:
     pr.wait_for_timeout(700);pr.evaluate("adv(%d);adv(%d);oSel=%d;go('pedido')"%(oid,oid,oid));pr.wait_for_timeout(300)
     rt=pr.inner_text('#app')
     ck('Listo para recoger' in rt and folio in rt,'rep sees Listo para recoger + folio')
-    ck(pr.locator('#tknotatot').count()==1 and pr.inner_text('#tknotatot').strip()==mxs(exp)+' MXN','rep pickup: shows nota total (store price)')
+    ck(pr.locator('#tknotatot').count()==0 and mxs(exp) not in rt and 'Total de la nota' not in rt,'rep pickup: nota total hidden')
     ck('Tu precio' not in rt and 'Margen' not in rt and 'margen' not in rt and pr.locator('#tkm').count()==0 and pr.locator('#tknota').count()==1,'rep: no margin/price comparison; amount comes from nota')
     pr.evaluate("$('#toast').style.display='none'");pr.screenshot(path='shots/rep_listo_recoger.png',full_page=True)
     # store confirms handoff, then rep confirms with photo of nota
