@@ -46,8 +46,8 @@ const card=(o,extra='')=>`<div class="card"><div class="row"><b>${CATS[o.cat][0]
 <div class="row"><span class="muted">${o.pago==='tarjeta'?'💳 Tarjeta (demo)':'💵 Efectivo'+(o.pagaCon?` · paga con ${mx(o.pagaCon)}`:'')}${o.rep?' · 🛵 '+esc(o.rep):''}</span><b>${o.det.items||o.cat==='servicios'?'Total '+mx(total(o)):'Envío '+mx(o.fee)}</b></div>${extra}</div>`;
 
 function tabs(){const T={dir:[['home','📊','Panel'],['cli','👥','Clientes'],['rep','🛵','Repart.'],['due','🏪','Dueños'],['quejas','📣','Quejas'],['mas','⚙️','Más']],cliente:[['home','🏠','Inicio'],['nuevo','➕','Pedir'],['hist','📋','Mis pedidos']],repartidor:[['home','📦','Pedidos']],admin:[['home','📊','Resumen'],['todos','📋','Pedidos'],['tiendas','🏪','Tiendas'],['cfg','⚙️','Tarifas']]}[role];
- $('#tabs').innerHTML=T.map(([v,i,l])=>`<button class="${view===v?'on':''}" onclick="go('${v}')"><b>${i}</b>${l}</button>`).join('')}
-function go(v){if(v!==view&&['cli','rep','due','quejas'].includes(v)){pq='';pf='todos'}view=v;render();scrollTo(0,0)}
+ $('#tabs').innerHTML=T.map(([v,i,l])=>`<button class="${view===v||(role==='dir'&&v==='home'&&['lista','pedido'].includes(view))?'on':''}" onclick="go('${v}')"><b>${i}</b>${l}</button>`).join('')}
+function go(v){if(['home','cli','rep','due','quejas','mas'].includes(v)){pBack=null;oBack=null}if(v!==view&&['cli','rep','due','quejas'].includes(v)){pq='';pf='todos'}view=v;render();scrollTo(0,0)}
 function profBtn(){let b=$('#prof');if(!b){b=document.createElement('button');b.id='prof';b.className='profbtn';b.onclick=()=>go(acct()?'perfil':'auth');document.querySelector('.top').appendChild(b)}b.textContent=acct()?'👤 '+acct().nombre.split(' ')[0]:'👤 '+(isGuest()?'Invitado':'Mi cuenta')}
 function render(){if(locked()){$('#tabs').innerHTML='';$('#app').innerHTML=gateView();return}if(role==='cliente'){if(!sess()&&!AV[view])view='auth';if(AV[view]){$('#tabs').innerHTML='';$('#app').innerHTML=AV[view]();profBtn();return}profBtn();const a=acct(),x=a&&sancSt('cli:'+a.email);if(x){$('#tabs').innerHTML='';$('#app').innerHTML=blockedView(x,'Cuenta bloqueada')+'<button class="btn sec" onclick="localStorage.removeItem(SESS);go(\'auth\')">Cerrar sesión</button>';return}}
  if(role==='admin'){const x=sancSt('due:'+DB.duenos[0]);if(x){$('#tabs').innerHTML='';$('#app').innerHTML=blockedView(x,'Acceso del dueño bloqueado');return}}tabs();$('#app').innerHTML=({cliente:C,repartidor:R,admin:A,dir:D}[role][view]||(()=>''))()}
@@ -218,7 +218,7 @@ function cobrar(id){const o=O(id),m=+($('#cm'+id)?.value||0);if(!m)return toast(
 
 
 // ================= DIRECTIVO =================
-let pKey=null,pq='',pf='todos';
+let pKey=null,pq='',pf='todos',lst=null,oSel=null,pBack=null,oBack=null;
 const kType=k=>k.split(':')[0],kId=k=>k.slice(k.indexOf(':')+1);
 const stLabel=k=>{const x=sancSt(k);return x?(x.st==='baja'?'<span class="tag bad">Dado de baja</span>':'<span class="tag ex">Suspendido</span>'):'<span class="tag ok">Activo</span>'};
 function clientes(){const A=accts(),L=Object.values(A).map(a=>({k:'cli:'+a.email,n:a.nombre,sub:a.email+' · '+a.tel,tipo:'Cuenta'}));const seen={};DB.orders.filter(o=>o.src!=='cuenta'&&o.tel).forEach(o=>{if(!seen[o.tel]){seen[o.tel]=1;L.push({k:'inv:'+o.tel,n:o.nombre||'Invitado',sub:o.tel,tipo:'Invitado'})}});
@@ -248,14 +248,14 @@ const qCard=q=>`<div class="card"><div class="row"><b>📣 ${esc(q.tipo)}</b><sp
  ${q.rep?`<button class="btn sm" onclick="pKey='rep:${esc(q.rep)}';go('persona')">⚖️ Sancionar repartidor</button>`:''}<button class="btn sec sm" onclick="pKey='${esc(q.cli)}';go('persona')">👤 Ver cliente</button></div>`;
 const D={
  home:()=>{const O=DB.orders,dn=O.filter(o=>done(o)&&!o.cancel),cl=clientes(),fee=a=>a.reduce((s,o)=>s+o.fee,0),ok=O.filter(o=>!o.cancel),ef=ok.filter(o=>o.pago==='efectivo'),tj=ok.filter(o=>o.pago==='tarjeta');
-  const st=(v,l)=>`<div class="card stat"><b>${v}</b>${l}</div>`;
-  return `<h2>Panel directivo</h2>${SANC_NOTE}<div class="grid">${st(O.length,'Pedidos')+st(cl.length,`Clientes<br><span class="muted">${cl.filter(c=>c.tipo==='Cuenta').length} cuentas · ${cl.filter(c=>c.tipo==='Invitado').length} invitados</span>`)+st(DB.reps.length,'Repartidores')+st(DB.duenos.length,'Dueños')
-  +st(dn.filter(o=>!isLate(o)).length,'✅ A tiempo')+st(dn.filter(isLate).length,`⏰ Tarde (>${lateMin()} min)`)+st(DB.quejas.length,`📣 Quejas (${DB.quejas.filter(q=>q.st!=='Resuelta').length} abiertas)`)+st(O.filter(o=>o.cancel).length,'❌ Cancelaciones')
-  +st(mx(fee(ef)),'💵 Comisiones efectivo')+st(mx(fee(tj)),'💳 Comisiones tarjeta')+st(O.filter(overch).length,'⚠️ Cobros de más')+st(Object.keys(DB.sanc).filter(sancSt).length,'⛔ Sancionados')}</div>
+  const st=(v,l,key)=>key?`<div class="card stat tap" role="button" tabindex="0" data-lista="${key}" onclick="openLista('${key}')"><b>${v}</b>${l}<span class="ver">Ver ›</span></div>`:`<div class="card stat"><b>${v}</b>${l}</div>`;
+  return `<h2>Panel directivo</h2>${SANC_NOTE}<div class="grid">${st(O.length,'Pedidos','pedidos')+st(cl.length,`Clientes<br><span class="muted">${cl.filter(c=>c.tipo==='Cuenta').length} cuentas · ${cl.filter(c=>c.tipo==='Invitado').length} invitados</span>`)+st(DB.reps.length,'Repartidores')+st(DB.duenos.length,'Dueños')
+  +st(dn.filter(o=>!isLate(o)).length,'✅ A tiempo','atiempo')+st(dn.filter(isLate).length,`⏰ Tarde (>${lateMin()} min)`,'tarde')+st(DB.quejas.length,`📣 Quejas (${DB.quejas.filter(q=>q.st!=='Resuelta').length} abiertas)`)+st(O.filter(o=>o.cancel).length,'❌ Cancelaciones','cancel')
+  +st(mx(fee(ef)),'💵 Comisiones efectivo','comef')+st(mx(fee(tj)),'💳 Comisiones tarjeta','comtj')+st(O.filter(overch).length,'⚠️ Cobros de más','cobros')+st(Object.keys(DB.sanc).filter(sancSt).length,'⛔ Sancionados','sanc')}</div>
   <div class="card"><h3>Actividad reciente</h3>${DB.audit.slice(-3).reverse().map(auditRow).join('')||'<p class="muted">Sin sanciones.</p>'}</div>`},
  cli:()=>listView('cli','Clientes'),rep:()=>listView('rep','Repartidores'),due:()=>listView('due','Dueños'),
  persona:()=>{const k=pKey,t=kType(k),x=sancSt(k),p=people(t==='inv'?'cli':t).find(z=>z.k===k)||{n:kId(k),sub:''},A=t==='cli'?accts()[kId(k)]:null,O=ordersOf(k).sort((a,b)=>b.t-a.t);
-  return `<button class="btn sec sm" style="margin:0 0 8px" onclick="go('${t==='inv'?'cli':t}')">← Volver</button><h2>${esc(p.n)}</h2>${SANC_NOTE}
+  return `<button class="btn sec sm" style="margin:0 0 8px" onclick="go(pBack||'${t==='inv'?'cli':t}')">${pBack==='lista'?'← Volver a la lista':pBack==='pedido'?'← Volver al pedido':'← Volver'}</button><h2>${esc(p.n)}</h2>${SANC_NOTE}
   <div class="card"><div class="row"><span class="tag">${({cli:'Cliente con cuenta',inv:'Cliente invitado',rep:'Repartidor',due:'Dueño'})[t]}</span>${stLabel(k)}</div>${x?`<div class="warn">${sancMsg(x).replace('Tu cuenta','Cuenta')}${x.nota?' · '+esc(x.nota):''}</div>`:''}
   ${A?`<div class="muted">📧 ${esc(A.email)} · 📞 <a href="tel:${A.tel}">${A.tel}</a><br>📍 ${A.dirs.map(d=>esc(dirTxt(d))).join(' / ')}<br>Alta: ${fdt(A.creado||Date.now())}</div>`:t==='inv'?`<div class="muted">📞 <a href="tel:${esc(kId(k))}">${esc(kId(k))}</a></div>`:''}</div>
   <div class="grid">${metrics(k).map(([l,v])=>`<div class="card stat"><b>${v}</b>${l}</div>`).join('')}</div>
@@ -269,6 +269,40 @@ const D={
   <div class="card"><h3>Dueños</h3>${DB.duenos.map(d=>`<div>${esc(d)}</div>`).join('')}<div class="muted">El panel /dueno/ de este celular corresponde a "${esc(DB.duenos[0])}".</div><input id="ndue" placeholder="Nombre" style="margin-top:6px"><button class="btn sec sm" onclick="const n=$('#ndue').value.trim();if(n){DB.duenos.push(n);save();render()}">➕ Agregar dueño</button></div>
   <div class="card"><h3>Contraseña del directivo</h3><label>Actual</label><input id="op" type="password"><label>Nueva</label><input id="np" type="password"><button class="btn sec" onclick="ownChange()">Cambiar contraseña</button><button class="btn sec" onclick="logout()">Cerrar sesión</button></div>`
 };
+// ---- listas del panel directivo (cuadros tocables)
+const ordDesc=a=>a.slice().sort((x,y)=>y.t-x.t);
+function dirLists(){const O=DB.orders,dn=O.filter(o=>done(o)&&!o.cancel),ok=O.filter(o=>!o.cancel),fee=a=>a.reduce((s,o)=>s+o.fee,0),ef=ok.filter(o=>o.pago==='efectivo'),tj=ok.filter(o=>o.pago==='tarjeta');
+ return {pedidos:{t:'📦 Todos los pedidos',L:O},atiempo:{t:'✅ Pedidos entregados a tiempo',L:dn.filter(o=>!isLate(o)),sub:`Entregados en ${lateMin()} minutos o menos.`},tarde:{t:'⏰ Pedidos entregados tarde',L:dn.filter(isLate),sub:`Tardaron más de ${lateMin()} minutos (lo puedes cambiar en "Más").`},
+  cancel:{t:'❌ Pedidos cancelados',L:O.filter(o=>o.cancel)},comef:{t:'💵 Comisiones en efectivo',L:ef,com:1,sum:fee(ef),sub:'Pedidos pagados en efectivo (sin cancelados) y la comisión de envío de cada uno.'},comtj:{t:'💳 Comisiones con tarjeta',L:tj,com:1,sum:fee(tj),sub:'Pedidos pagados con tarjeta (sin cancelados) y la comisión de envío de cada uno.'},
+  cobros:{t:'⚠️ Cobros de más',L:O.filter(overch),cob:1,sub:'El repartidor cobró en efectivo más del total del pedido.'},sanc:{t:'⛔ Personas sancionadas',P:Object.keys(DB.sanc).filter(sancSt)}}}
+function openLista(k){lst=k;oBack=null;pBack=null;go('lista')}
+const jsq=s=>esc(s).replace(/'/g,"\\'");
+const pName=k=>{const t=kType(k),p=people(t==='inv'?'cli':t).find(z=>z.k===k);return p?p.n:kId(k)};
+const ordRow=(o,x={})=>`<div class="card store ord" data-oid="${o.id}" onclick="oSel=${o.id};oBack='lista';go('pedido')"><div class="row"><b>${CATS[o.cat][0]} #${o.id}</b><span class="muted">${fdt(o.t)}</span></div>
+ <div style="margin:4px 0">${tag(o)}</div><div class="muted">👤 ${esc(o.nombre||'Cliente '+o.tel)} · 🛵 ${esc(o.rep||'Sin asignar')}</div>
+ <div class="row"><span class="muted">${o.pago==='tarjeta'?'💳 Tarjeta':'💵 Efectivo'}</span><b>Total ${mx(total(o))}</b></div>
+ ${x.com?`<div class="row"><span class="muted">Comisión de envío</span><b class="money">${mx(o.fee)}</b></div>`:''}
+ ${x.cob?`<div class="warn">Cobró ${mx(o.cobradoMonto)} · Total ${mx(total(o))} · De más: <b>${mx(o.cobradoMonto-total(o))}</b><br>Repartidor: ${esc(o.rep||'—')}</div>`:''}
+ <div class="muted" style="text-align:right">Ver detalle ›</div></div>`;
+D.lista=()=>{const d=dirLists()[lst];if(!d)return D.home();const back=`<button class="btn sec sm" style="margin:0 0 8px" onclick="go('home')">← Volver al panel</button>`;
+ if(d.P){const P=d.P.map(k=>{const x=sancSt(k);return `<div class="card store per" onclick="pKey='${jsq(k)}';pBack='lista';go('persona')"><div class="row"><b>${esc(pName(k))}</b>${stLabel(k)}</div><div class="muted">${({cli:'Cliente con cuenta',inv:'Cliente invitado',rep:'Repartidor',due:'Dueño'})[kType(k)]} · Motivo: ${esc(x.mot||'—')}${x.st==='suspendido'?' · Hasta '+fdt(x.hasta):''}</div>${x.nota?`<div class="muted">${esc(x.nota)}</div>`:''}<div class="muted" style="text-align:right">Ver ficha ›</div></div>`}).join('');
+  return `${back}<h2>${d.t}</h2>${SANC_NOTE}<div class="muted" id="lcount" style="margin:8px 0">${d.P.length} ${d.P.length===1?'persona':'personas'}</div>${P||'<p class="muted empty">No hay personas sancionadas en este momento.</p>'}`}
+ const L=ordDesc(d.L);return `${back}<h2>${d.t}</h2>${SANC_NOTE}${d.sub?`<div class="muted" style="margin-top:8px">${d.sub}</div>`:''}
+ <div class="card row" style="margin-top:10px"><span id="lcount"><b>${L.length}</b> ${L.length===1?'pedido':'pedidos'}</span>${d.com?`<span>Total comisiones: <b id="lsum">${mx(d.sum)}</b></span>`:''}</div>
+ ${L.map(o=>ordRow(o,d)).join('')||'<p class="muted empty">No hay pedidos en esta lista</p>'}`};
+D.pedido=()=>{const o=DB.orders.find(x=>x.id===oSel);if(!o)return D.home();const ck=cliKey(o),S=steps(o),Q=DB.quejas.filter(q=>q.orderId===o.id);
+ const back=oBack==='lista'?`<button class="btn sec sm" style="margin:0 0 8px" onclick="go('lista')">← Volver a la lista</button>`:'';
+ return `${back}<button class="btn sec sm" style="margin:0 0 8px" onclick="go('home')">← Volver al panel</button><h2>${CATS[o.cat][0]} Pedido #${o.id}</h2>
+ <div class="card"><div style="margin-bottom:6px">${tag(o)}</div><div class="muted">${CATS[o.cat][1]} · Hecho el ${fdt(o.t)}${durMin(o)!==null?` · Tardó ${durMin(o)} min`:''}</div></div>
+ <div class="card"><h3>Personas</h3><div class="line"><div class="row"><span>👤 <b>${esc(o.nombre||'Cliente '+o.tel)}</b> <span class="tag">${o.src==='cuenta'?'Cuenta':'Invitado'}</span></span>${stLabel(ck)}</div><div class="muted">📞 <a href="tel:${esc(o.tel)}">${esc(o.tel)}</a> · 📍 ${esc(o.dir)}</div><button class="btn sec sm" id="vcli" onclick="pKey='${jsq(ck)}';pBack='pedido';go('persona')">Ver ficha del cliente ›</button></div>
+ <div class="line"><div class="row"><span>🛵 <b>${esc(o.rep||'Sin asignar')}</b></span>${o.rep?stLabel('rep:'+o.rep):''}</div>${o.rep?`<button class="btn sec sm" id="vrep" onclick="pKey='rep:${jsq(o.rep)}';pBack='pedido';go('persona')">Ver ficha del repartidor ›</button>`:''}</div></div>
+ <div class="card"><h3>Detalle</h3><div class="muted">${summary(o)}</div></div>
+ <div class="card"><h3>Pago</h3><div class="row"><span>Forma de pago</span><b>${o.pago==='tarjeta'?'💳 Tarjeta (demo)':'💵 Efectivo'}</b></div>${o.pagaCon?`<div class="row"><span>Paga con</span><b>${mx(o.pagaCon)}</b></div>`:''}
+  <div class="row"><span>Comisión de envío</span><b>${mx(o.fee)}</b></div><div class="row"><span>Total del pedido</span><b>${mx(total(o))}</b></div>
+  ${o.cobrado&&o.cobradoMonto!=null?`<div class="row"><span>Cobrado por el repartidor</span><b>${mx(o.cobradoMonto)}</b></div>`:''}${overch(o)?`<div class="warn">⚠️ Cobró ${mx(o.cobradoMonto-total(o))} de más.</div>`:''}</div>
+ <div class="card"><h3>Seguimiento</h3>${o.cancel?'<p><span class="tag bad">Cancelado</span></p>':''}<ul class="steps">${S.map((n,i)=>`<li class="${o.st>=i?'done':''}">${n}${(o.ts||{})[i]?` <span class="muted">· ${fdt(o.ts[i])}</span>`:''}</li>`).join('')}</ul></div>
+ <div class="card"><h3>Quejas de este pedido</h3>${Q.map(q=>`<div class="line"><div class="row"><b>${esc(q.tipo)}</b><span class="tag ${q.st==='Resuelta'?'ok':q.st==='Nueva'?'bad':'ex'}">${q.st}</span></div><div class="muted">${esc(q.txt)}</div></div>`).join('')||'<p class="muted">Sin quejas.</p>'}</div>`};
+
 const A={
  home:()=>{const h=DB.orders.filter(o=>o.d===today()),sum=a=>a.reduce((s,o)=>s+o.fee,0),ef=h.filter(o=>o.pago==='efectivo'),tj=h.filter(o=>o.pago==='tarjeta');
  return `<h2>Resumen de hoy</h2><div class="grid"><div class="card stat"><b>${h.length}</b>Pedidos</div><div class="card stat"><b>${h.filter(done).length}</b>Entregados</div>
