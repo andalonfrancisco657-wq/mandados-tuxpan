@@ -52,3 +52,14 @@ nav button{flex:1;border:0;background:none;padding:10px 4px;font-size:12px;color
 .tkthumb{display:inline-block;width:40px;height:40px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:6px;background:#f1f5f9}.tkthumb.ph{text-align:center;line-height:40px;font-size:20px}
 .meter{height:8px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin-top:8px}.meter i{display:block;height:100%;background:#0f766e}.meter i.near{background:#f59e0b}.meter i.over{background:#dc2626}
 .okt{color:#166534}details.card summary{cursor:pointer;padding:2px 0}
+.prod.agotado{opacity:.55;filter:grayscale(.85)}.prod.agotado .price{color:#64748b;text-decoration:line-through}
+.pimg{width:56px;height:56px;object-fit:cover;border-radius:10px;display:block;margin:0 auto 4px;background:#f1f5f9}
+.mrg{font-size:13px;font-weight:700}.rvp.ok{border:2px solid #86efac}.rvg{grid-template-columns:1fr 1fr auto;align-items:end}.rvg .sw{margin-bottom:12px}
+.codebox{font-size:34px;letter-spacing:8px;font-weight:800;text-align:center;background:#fff7ed;color:#9a3412;border:2px dashed #fdba74;border-radius:12px;padding:10px;margin:8px 0}
+.tabd{margin-top:8px;border-top:1px solid #f1f5f9;padding-top:6px}.tabd summary{cursor:pointer;font-weight:700;font-size:14px;padding:4px 0}
+.prow{display:grid;grid-template-columns:2.2fr 1fr 1fr 1fr;gap:6px;align-items:center;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13px}.prow>*:not(:first-child){text-align:right}.prow.ph{font-weight:700;color:#64748b;font-size:12px}.prow.agot{opacity:.6}
+.tgrid{display:grid;grid-template-columns:1fr;gap:10px}.tprod{margin:0}.tprod .emo{font-size:30px;margin-right:4px}.tprod .pimg{margin:0 6px 0 0}.tprod.agot{background:#f8fafc;opacity:.8}.tprod .row input{max-width:150px}
+.tcols{display:grid;grid-template-columns:1fr;gap:12px}.tcol h3{margin-top:6px}
+body.tienda .top{background:#ea580c}body.tienda .btn:not(.sec){background:#ea580c}body.tienda nav button.on{color:#ea580c}body.tienda .chip.on{background:#ea580c}body.tienda .qty button{background:#ea580c}
+@media (min-width:760px){body.tienda main{max-width:1180px;padding:18px 24px}body.tienda .tgrid{grid-template-columns:1fr 1fr}body.tienda .tcols{grid-template-columns:1fr 1fr 1fr;align-items:start}body.tienda .tcols.two{grid-template-columns:1fr 1fr}body.tienda .tlogin{max-width:520px;margin:20px auto}body.tienda nav{justify-content:center}body.tienda nav button{max-width:200px;font-size:14px}}
+@media (min-width:1000px){body.tienda .tgrid{grid-template-columns:1fr 1fr 1fr}}
