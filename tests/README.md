@@ -24,3 +24,7 @@ Ojo: límite de 5 pedidos/10 min por cliente y 15 códigos incorrectos/hora por 
 ## Pin del domicilio (v25)
 - `client_pin.mjs` (node): visibilidad del pin (cliente/asignado/dueño sí; tienda/otros repartidores no), distancia en entrega con código y con foto (rechazo >150 m o sin GPS).
 - `client_pin_ui.py`: el cliente marca su casa, el repartidor ve el mapa, el dueño ve la distancia.
+
+## v28 · Contraseña de la tienda
+- `store_password.mjs` (desde /workspace/t, `A=<tienda prueba> B=<tienda prueba>`): crear contraseña, entrar, contraseña de otra tienda, bloqueo tras 5 intentos (por tienda+sesión), código nuevo no saca sesiones con contraseña, cambiar requiere la actual, Salir y volver a entrar, cerrar sesiones, bloquear, restablecer, recuperación por código.
+- `store_password_ui.py` (`MT_TEST_STORE=<tienda prueba>`): flujo en pantalla tienda + controles del dueño.
