@@ -225,7 +225,7 @@ const C={
   if(c==='paquetes')f=`<label>Dirección de recolección</label><input id="de"><label>Dirección de entrega del paquete</label><input id="a"><label>Tamaño</label><select class="f" id="tam"><option>Chico (sobre/caja de zapatos)</option><option>Mediano (mochila)</option></select>`;
   return catsBar(c)+`<div class="card">${f}</div>${entrega()}<button class="btn" onclick="crear()">Confirmar pedido</button>`},
 
- track:()=>{const o=DB.orders.find(x=>x.id===track);if(!o)return'';const s=steps(o);return `<h2>Seguimiento #${o.id}</h2>${cliStoreBan(o)}${card(o)}
+ track:()=>{const o=DB.orders.find(x=>x.id===track);if(!o)return'';const s=steps(o);return `<h2>Seguimiento #${o.id}</h2>${typeof cliCode==='function'?cliCode(o):''}${cliStoreBan(o)}${card(o)}
   <div class="card"><ul class="steps">${s.map((n,i)=>`<li class="${i<=o.st?'done':''} ${i===o.st?'cur':''}">${n}</li>`).join('')}</ul></div>
   ${chatBox(o,'cli')}
   ${o.st===0&&!o.cancel&&!o.tacc?`<button class="btn sec" id="cancelbtn" onclick="cancelOrd(${o.id})">Cancelar pedido</button>`:''}
@@ -729,7 +729,7 @@ async function tkFile(inp){const f=inp.files[0];if(!f)return;try{tkFoto=await sh
 async function saveRec(id){const o=O(id);if(!needRec(o))return;const k=recKind(o);if(!tkFoto)return toast(k==='paq'?'Toma la foto del paquete':o.nota?'Toma la foto de la nota de remisión':'Toma la foto del ticket');let m=0;if(k==='tienda'&&o.nota){m=notaTot(o)}else if(k!=='paq'){m=r2(+tkAmt);if(!(m>0))return toast('Escribe el monto del ticket')}
  const t=Date.now(),key='tk:'+id+':'+t;try{await fput(key,tkFoto)}catch(e){return toast('No se pudo guardar la foto en este celular')}
  o.compra={monto:m,foto:key,t,por:myRep,kind:k,store:k==='tienda'?o.det.storeId:null,tienda:o.det.tienda||'',cubre:k==='paq'?'':o.pago==='efectivo'?'empresa':'cliente',credito:k==='tienda'};if(k==='tienda'&&o.nota){o.compra.nota=o.nota.folio;if(!o.nota.fin)notaFreeze(o)}
- if(k==='tienda'){recogido(o,'rep');o.st=Math.max(o.st,3);o.ts=o.ts||{0:o.t};o.ts[3]=o.ts[3]||t}
+ // v24: el recogido ya no se marca aquí; se confirma con public.rep_step (tienda / código + GPS)
  tkFoto=null;tkFor=null;tkAmt='';save();toast(tkFlag(o)?'Guardado. ℹ️ El ticket difiere más del 10% del catálogo: queda solo como aviso':'Recolección guardada');render()}
 function recCard(o,cm){const c=o.compra;if(!c){if(o.cancel||done(o)||o.st<recStep(o))return '';return cm?'<div class="muted">🧾 Recolección pendiente (falta ticket)</div>':'<div class="card"><h3>🧾 Recolección</h3><p class="muted">Pendiente: el repartidor aún no sube el ticket.</p></div>'}
  const img=c.foto?`<img class="regimg" data-foto="${esc(c.foto)}" alt="Ticket">`:`<div class="regph">${c.ej?'Ticket de ejemplo (sin foto)':'Sin foto'}</div>`,f=tkFlag(o);
@@ -1070,7 +1070,7 @@ const evTxt=e=>{const o=e.o;return {'Recibido':`🆕 Pedido #${o.id} recibido`,'
 const evRow=e=>`<div class="row line ev"><span>${esc(evTxt(e))}</span><span class="muted">${hm(e.t)}</span></div>`;
 function vivoLink(){const A=vivoAct(),E=vivoEvents(3);return `<div class="card store" id="vivolink" onclick="go('vivo')"><div class="row"><b>🛰️ Seguimiento en vivo</b><span class="tag ${A.length?'ex':''}">${A.length} activo${A.length===1?'':'s'}</span></div>${E.map(evRow).join('')||'<div class="muted">Sin movimientos.</div>'}<div class="muted" style="text-align:right">Ver todos ›</div></div>`}
 function vivoView(){const L=vivoAct();return `${dkBack('home')}<h2>🛰️ Seguimiento en vivo</h2><button class="btn sm" id="mapbtn" onclick="MP.sel=null;go('mapa')">🗺️ Mapa de repartidores y tiendas</button><div class="muted">Pedidos activos con su paso actual y el tiempo de cada paso. Se actualiza solo.</div>
- <div id="vlist">${L.map(o=>`<div class="card vivo" data-vo="${o.id}"><div class="row"><b>${CATS[o.cat][0]} #${o.id}${o.det.tienda?' · '+esc(o.det.tienda):''}</b><span class="tag ex vstep">${curStep(o)}</span></div><div class="muted">🛵 ${o.rep?esc(o.rep):'Sin repartidor'} · Recibido hace ${durTxt(Date.now()-o.t)}</div>${tlHtml(o)}${role==='dir'?`<button class="btn sec sm" onclick="oSel=${o.id};oBack=null;go('pedido')">Ver pedido ›</button>`:''}</div>`).join('')||'<p class="muted">No hay pedidos activos.</p>'}</div>
+ <div id="vlist">${L.map(o=>`<div class="card vivo" data-vo="${o.id}"><div class="row"><b>${CATS[o.cat][0]} #${o.id}${o.det.tienda?' · '+esc(o.det.tienda):''}</b><span class="tag ex vstep">${curStep(o)}</span></div><div class="muted">🛵 ${o.rep?esc(o.rep):'Sin repartidor'} · Recibido hace ${durTxt(Date.now()-o.t)}</div>${tlHtml(o)}${typeof vfyHtml==='function'?vfyHtml(o):''}${role==='dir'?`<button class="btn sec sm" onclick="oSel=${o.id};oBack=null;go('pedido')">Ver pedido ›</button>`:''}</div>`).join('')||'<p class="muted">No hay pedidos activos.</p>'}</div>
  <div class="card" id="vfeed"><h3>Últimos movimientos</h3>${vivoEvents(15).map(evRow).join('')||'<p class="muted">Sin movimientos.</p>'}</div>`}
 A.vivo=vivoView;D.vivo=vivoView;
 // ---- avisos en vivo (tablet: nuevo pedido; dueño/directivo: movimientos)

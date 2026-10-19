@@ -14,3 +14,9 @@ Después de probar se borran los usuarios y datos de prueba (el catálogo de eje
 ## Importar productos (v23)
 - `product_import.py`: `MT_TEST_STORE=<id> python3 tests/product_import.py` (tienda de prueba con "Producto mapa (test)"). Solo aprueba solicitudes de esa tienda.
 Limpieza: borrar solo por IDs exactos lo creado en la corrida.
+
+## Comprobantes por paso (v24)
+- `step_proofs.mjs` (node, /workspace/t): intenta saltar pasos, códigos incorrectos, otro repartidor, bloqueo a los 5 intentos, foto falsa.
+- `step_proofs_ui.py` (+ `step_helper.mjs` copiado a /workspace/t): recogido, código de entrega, entrega con foto, vista del dueño.
+Ojo: límite de 5 pedidos/10 min por cliente y 15 códigos incorrectos/hora por repartidor.
+`supabase_e2e.py` usa el flujo anterior del repartidor (botón “Pasar a…”) y ya no aplica a recogido/entregado.

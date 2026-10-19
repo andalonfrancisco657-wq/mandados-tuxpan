@@ -1,0 +1,55 @@
+// v24: comprobantes por paso (servidor). Uso (en /workspace/t): MT_TEST_STORE=<id con lat/lng y sin tablet> MT_TEST_PROD=<id> node step_proofs.mjs
+// Imprime ORDERS=... y TABLET_ANON=... para la limpieza por IDs.
+import {createClient as cc} from '@supabase/supabase-js';import WS from 'ws';
+const U='https://qloxsilnuhqbgkgfdktx.supabase.co',K='sb_publishable_olBgCzXsfTndbBVe-QrMMg_RgR6w3Iv',SID=+process.env.MT_TEST_STORE,PID=+process.env.MT_TEST_PROD;
+const mk=()=>cc(U,K,{auth:{persistSession:false},realtime:{transport:WS}});let f=0;const ck=(c,m)=>{console.log(c?'OK  ':'FAIL',m);if(!c)f++};
+const login=async r=>{const c=mk();const x=await c.auth.signInWithPassword({email:`mt-test-${r}@mandados-test.dev`,password:'Prueba-12345'});if(x.error)throw x.error;return c};
+const cli=await login('cli'),rep=await login('rep'),rep2=await login('rep2'),due=await login('due');const rid=(await rep.auth.getUser()).data.user.id;
+const near={p_lat:21.9450,p_lng:-105.2962,p_acc:10},far={p_lat:21.9547,p_lng:-105.2964,p_acc:10};
+const mkOrder=async()=>{const o=await cli.rpc('create_order',{p:{cat:'abarrotes',det:{storeId:SID,items:[{pid:PID,q:1}]},nombre:'Cliente entregas (test)',tel:'3196660002',dir:'Calle test 2',zona:0,pago:'efectivo'}});if(o.error)throw o.error;return o.data};
+const step=(c,id,a,x={})=>c.rpc('rep_step',{p_id:id,p_action:a,...x});
+const get=async(c,id)=>((await c.rpc('get_orders')).data||[]).find(o=>o.id===id);
+const A=await mkOrder(),id=A.id;ck(/^\d{4}$/.test(A.order.delivCode||''),'cliente ve su código de entrega');
+let r=await rep.rpc('sync_order',{p:{id,rep:'Test Rep Uno'}});ck(!r.error&&r.data.rep==='Test Rep Uno','repartidor acepta el pedido');
+ck(!(await get(rep,id)).delivCode,'el repartidor NO recibe el código de entrega');
+r=await step(rep2,id,'avanzar');ck(!!r.error,'otro repartidor no puede avanzar');
+r=await rep.rpc('sync_order',{p:{id,st:4,ts:{4:1},recog:{tienda:1,rep:1,t:1}}});ck((await get(rep,id)).st===0&&!(await get(rep,id)).recog,'sync_order ya no deja saltar estado ni falsear recog/ts');
+r=await step(rep,id,'recogido');ck(!!r.error,'no puede marcar recogido desde Recibido');
+r=await step(rep,id,'entregado',{p_code:'0000'});ck(!!r.error,'no puede marcar entregado desde Recibido');
+r=await step(rep,id,'avanzar');ck(r.data?.ok&&r.data.order.st===1,'avanza a En camino a la tienda');
+r=await step(rep,id,'avanzar');ck(r.data?.ok&&r.data.order.st===2,'avanza a Comprando');
+r=await step(rep,id,'avanzar');ck(!!r.error,'no puede saltar el recogido con “avanzar”');
+r=await step(rep,id,'recogido',near);ck(!!r.error&&/foto/.test(r.error.message),'recogido exige foto de la nota');
+await rep.rpc('sync_order',{p:{id,compra:{kind:'tienda',foto:'tk:x',monto:0,t:Date.now()}}});
+// la tienda (tablet) obtiene el código de respaldo
+const code=(await due.rpc('gen_tablet_code',{p_store:SID})).data;const tab=mk();await tab.auth.signInAnonymously();const tabId=(await tab.auth.getUser()).data.user.id;
+r=await tab.rpc('redeem_tablet_code',{p_store:SID,p_code:code});ck(r.data===true,'tablet de prueba entra');
+r=await step(rep,id,'recogido',near);ck(r.data&&!r.data.ok&&/tienda/.test(r.data.msg),'recogido sin confirmación de la tienda: rechazado');
+r=await step(rep,id,'recogido',{...near,p_code:'999999'});ck(r.data&&!r.data.ok&&/incorrecto/.test(r.data.msg),'código de tienda incorrecto: rechazado');
+const tOrd=await get(tab,id);ck(/^\d{6}$/.test(tOrd.handoff||''),'la tablet ve el código para el repartidor');ck(!tOrd.delivCode,'la tablet no ve el código del cliente');
+r=await step(rep,id,'recogido',{...far,p_code:tOrd.handoff});ck(r.data&&!r.data.ok&&/m de la tienda/.test(r.data.msg),'recogido lejos de la tienda (1 km): rechazado');
+r=await step(rep,id,'recogido',{...near,p_code:tOrd.handoff});ck(r.data?.ok&&r.data.order.st===3&&r.data.order.verif.recog.m==='codigo'&&r.data.order.verif.recog.dist<150,'recogido con código + GPS → En camino automático');
+ck(!(await get(tab,id)).handoff,'el código de la tienda es de un solo uso');
+r=await step(rep,id,'entregado',{p_code:(A.order.delivCode)});ck(!!r.error&&/cobraste/.test(r.error.message),'efectivo: exige “Cobré $X”');
+for(let i=0;i<5;i++)r=await step(rep,id,'entregado',{p_code:'x'+i,p_monto:50});ck(r.data&&!r.data.ok&&r.data.locked,'5 códigos incorrectos → bloqueado');
+r=await step(rep,id,'entregado',{p_code:A.order.delivCode,p_monto:50});ck(r.data&&!r.data.ok&&r.data.locked,'bloqueado aunque luego ponga el correcto');
+r=await step(rep,id,'entregado_foto',{p_photo:'tk:entrega:'+id+':1',p_monto:50});ck(!!r.error,'foto no subida: rechazado');
+const key='tk:entrega:'+id+':'+Date.now(),path=rid+'/'+key.replace(/[^a-zA-Z0-9._-]/g,'_')+'.jpg';
+const up=await rep.storage.from('tickets').upload(path,new Blob([new Uint8Array([255,216,255,217])],{type:'image/jpeg'}),{upsert:true});ck(!up.error,'foto de entrega subida al bucket privado');
+await rep.rpc('photo_register',{p_key:key,p_bucket:'tickets',p_path:path});
+r=await step(rep2,id,'entregado_foto',{p_photo:key,p_monto:50});ck(!!r.error,'otro repartidor no puede entregar');
+r=await step(rep,id,'entregado_foto',{...near,p_photo:key,p_monto:50});ck(r.data?.ok&&r.data.order.st===4&&r.data.order.verif.entrega.revisar===true&&r.data.order.cobrado===1,'entrega con foto → “por revisar”, cobro registrado');
+let d=await get(due,id);ck(d.verif.recog.m==='codigo'&&d.verif.entrega.m==='foto','el dueño ve cómo se verificó cada paso');
+r=await rep.rpc('review_delivery',{p_id:id});ck(!!r.error,'repartidor no puede marcar revisado');
+r=await due.rpc('review_delivery',{p_id:id,p_nota:'ok (test)'});d=await get(due,id);ck(!r.error&&d.verif.entrega.revisar===false,'dueño marca revisado');
+r=await step(rep,id,'avanzar');ck(!!r.error,'no se puede avanzar un pedido entregado');
+// Pedido B: la tienda confirma en su tablet, sin GPS
+const B=await mkOrder(),idb=B.id;await rep.rpc('sync_order',{p:{id:idb,rep:'Test Rep Uno'}});
+r=await cli.rpc('tienda_handoff',{p_id:idb});ck(!!r.error,'cliente no puede marcar entregado al repartidor');
+r=await tab.rpc('tienda_handoff',{p_id:idb});ck(!!r.error,'tienda: antes de “listo para recoger” no puede');
+await tab.rpc('sync_order',{p:{id:idb,tacc:{t:Date.now()},prep:{t:Date.now()}}});
+r=await tab.rpc('tienda_handoff',{p_id:idb});ck(!r.error&&r.data.recog.tienda>0,'tienda marca “Entregado al repartidor”');
+await step(rep,idb,'avanzar');await step(rep,idb,'avanzar');await rep.rpc('sync_order',{p:{id:idb,compra:{kind:'tienda',foto:'tk:y',monto:0,t:Date.now()}}});
+r=await step(rep,idb,'recogido');ck(r.data?.ok&&r.data.order.verif.recog.m==='tienda'&&r.data.order.verif.recog.sinUbic,'recogido por confirmación de la tienda, sin GPS → marcado “sin verificación de ubicación”');
+r=await step(rep,idb,'entregado',{p_code:B.order.delivCode,p_monto:42});ck(r.data?.ok&&r.data.order.st===4&&r.data.order.verif.entrega.m==='codigo','entregado con el código del cliente');
+console.log('ORDERS='+id+','+idb+' TABLET_ANON='+tabId+' PHOTO='+path);console.log(f?f+' FALLAS':'TODO OK');process.exit(f?1:0);
