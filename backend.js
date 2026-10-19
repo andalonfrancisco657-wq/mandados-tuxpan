@@ -26,6 +26,8 @@ BK.refresh=commit;
 let pulling=false,again=false;
 BK.pull=async()=>{if(pulling){again=true;return}pulling=true;
  try{const g0=BK.gen,s=await BK.session();const bs=await BK.rpc('app_bootstrap');const orders=s?await BK.rpc('get_orders'):[];
+  const rl=bs&&bs.me&&bs.me.role;BK.sreq=(rl==='dueno'||rl==='directivo')?((await sb.from('store_activation_requests').select('*').order('id',{ascending:false})).data||[]):[];
+  BK.myReq=(s&&R==='tienda'&&rl!=='tienda')?await BK.rpc('my_store_requests'):[];
   if(BK.pushing||pt||g0!==BK.gen){again=true;return}apply(bs,orders);BK.ready=true;BK.err=null;commit()}
  catch(e){console.warn('pull',e);BK.err=e.message;if(!BK.ready){BK.ready=true;try{render()}catch(_){}}}
  finally{pulling=false;if(again){again=false;setTimeout(BK.pull,300)}}};
@@ -78,7 +80,7 @@ BK.getPhoto=async k=>{if(!bucketOf(k)||!(await BK.session()))return null;const r
  return await new Promise(res=>{const f=new FileReader();f.onload=()=>res(f.result);f.readAsDataURL(data)})};
 // ---- tiempo real + respaldo cada 30 s
 BK.live=async()=>{if(BK.ch){sb.removeChannel(BK.ch);BK.ch=null}if(!(await BK.session()))return;
- BK.ch=sb.channel('mt-'+R+'-'+Math.random().toString(36).slice(2)).on('postgres_changes',{event:'*',schema:'public',table:'orders'},BK.soon).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},BK.soon).on('postgres_changes',{event:'INSERT',schema:'public',table:'order_events'},BK.soon).subscribe()};
+ BK.ch=sb.channel('mt-'+R+'-'+Math.random().toString(36).slice(2)).on('postgres_changes',{event:'*',schema:'public',table:'orders'},BK.soon).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},BK.soon).on('postgres_changes',{event:'INSERT',schema:'public',table:'order_events'},BK.soon).on('postgres_changes',{event:'*',schema:'public',table:'store_activation_requests'},()=>{clearTimeout(BK._q);BK._q=setTimeout(BK.pull,500)}).subscribe()};
 BK.start=()=>{sb.auth.onAuthStateChange((ev,s)=>{if(ev==='SIGNED_IN'||ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED'){if(s)sb.realtime.setAuth(s.access_token);setTimeout(BK.live,0)}});BK.pull().then(BK.live);setInterval(()=>{if(!document.hidden)BK.pull()},30000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)BK.pull()})};
 })();
