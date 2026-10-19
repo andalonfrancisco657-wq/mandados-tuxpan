@@ -6,3 +6,11 @@
 - `test_v12.py`: pruebas antiguas de la versión solo-local (v12); ya no aplican desde que los datos viven en Supabase.
 
 Después de probar se borran los usuarios y datos de prueba (el catálogo de ejemplo se conserva).
+
+## Mapa de repartidores (v22)
+- `map_rls.mjs` (node, en /workspace/t): RLS de ubicaciones/alertas; crea un pedido de prueba e imprime ORDER=.
+- `map_drivers.py` (Playwright, geolocalización simulada): `MT_TEST_STORE=<id> MT_TEST_ORDER=<id> python3 tests/map_drivers.py`.
+
+## Importar productos (v23)
+- `product_import.py`: `MT_TEST_STORE=<id> python3 tests/product_import.py` (tienda de prueba con "Producto mapa (test)"). Solo aprueba solicitudes de esa tienda.
+Limpieza: borrar solo por IDs exactos lo creado en la corrida.

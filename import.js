@@ -1,0 +1,53 @@
+// Importar productos desde Excel/CSV (tablet de la tienda). SheetJS vendorizado, cargado al usarlo.
+(function(){
+const XURL=(window.APP_BASE||'')+'vendor/xlsx-0.20.3.full.min.js',MAXR=2000,CHUNK=500;
+const F=[['n','Nombre del producto',/^(nombre|producto|descripcion|articulo|desc)/],['pc','Precio (tu precio a Mandados)',/(precio|costo|price|importe)/],['cb','Código de barras',/(codigo|barras|ean|upc|sku|clave)/],
+ ['stk','Existencia / disponible',/(existencia|stock|inventario|disponib|cantidad|exist)/],['pres','Unidad / presentación',/(unidad|presentacion|medida|contenido|^um$|empaque)/],['sec','Categoría',/(categoria|seccion|departamento|familia|linea)/]];
+const nz=t=>String(t??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+let IMP=null;window.IMPDBG=()=>IMP;
+const loadX=()=>window.XLSX?Promise.resolve():new Promise((ok,no)=>{const s=document.createElement('script');s.src=XURL;s.onload=ok;s.onerror=()=>no(new Error('No se pudo cargar el lector de Excel'));document.head.appendChild(s)});
+const num=v=>{if(typeof v==='number')return v;const s=String(v??'').replace(/[$\s]/g,'').replace(/,(?=\d{3}(\D|$))/g,'').replace(',','.');return s===''?null:(/^-?\d*\.?\d+$/.test(s)?+s:NaN)};
+const cbs=v=>{if(v==null||v==='')return '';if(typeof v==='number')return Number.isInteger(v)?BigInt(Math.round(v)).toString():String(v);return String(v).replace(/\s/g,'').replace(/\.0+$/,'')};
+function stkv(v){if(v==null||v==='')return {};const n=num(v);if(n!=null&&!isNaN(n))return {stk:Math.max(0,Math.round(n)),disp:n>0};const s=nz(v);if(/^(si|s|disponible|hay|x|true|1|yes)$/.test(s))return {disp:true};if(/^(no|n|agotado|sin|false|0)$/.test(s))return {disp:false};return {}}
+function guess(head){const m={};F.forEach(([k,,re])=>{const i=head.findIndex((h,j)=>re.test(nz(h))&&!Object.values(m).includes(j));m[k]=i});return m}
+async function readFile(f){await loadX();const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:false});const ws=wb.Sheets[wb.SheetNames[0]];
+ let A=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:'',blankrows:false});A=A.filter(r=>r.some(c=>String(c).trim()!==''));if(!A.length)throw new Error('El archivo está vacío');
+ let hi=0,best=-1;A.slice(0,10).forEach((r,i)=>{const sc=r.filter(c=>F.some(([,,re])=>re.test(nz(c)))).length;if(sc>best){best=sc;hi=i}});
+ const head=A[hi].map((h,i)=>String(h).trim()||'Columna '+(i+1)),rows=A.slice(hi+1);return {head,rows,hdrRow:hi+1}}
+window.impOpen=()=>{IMP=null;go('imp')};
+window.impFile=async inp=>{const f=inp.files[0];if(!f)return;if(f.size>15e6)return toast('El archivo es muy grande (máx. 15 MB)');
+ try{toast('Leyendo archivo…');const r=await readFile(f);if(r.rows.length>MAXR){toast(`El archivo tiene ${r.rows.length} filas; el máximo es ${MAXR}. Divídelo en varios archivos.`);IMP={name:f.name,err:`Tiene ${r.rows.length} filas (máximo ${MAXR}).`};render();return}
+  IMP={name:f.name,...r,map:guess(r.head),only:false};render()}catch(e){toast(e.message||'No se pudo leer el archivo');IMP={name:f.name,err:'No se pudo leer: '+(e.message||e)};render()}};
+window.impMap=(k,v)=>{IMP.map[k]=+v;render()};window.impOnly=v=>{IMP.only=v;render()};
+function parsed(){const s=myStore(),M=IMP.map,P=s?s.prods:[],byCb={},byN={};P.forEach(p=>{if(p.cb)byCb[p.cb]=p;const k=nz(p.n);if(!(k in byN))byN[k]=p});
+ const pend=new Set((DB.tReq||[]).filter(r=>r.storeId===(s&&s.id)&&r.st==='pendiente'&&r.tipo==='nuevo').map(r=>nz(r.n)));const seen=new Set();
+ return IMP.rows.map((row,i)=>{const g=k=>M[k]>=0?row[M[k]]:'';const n=String(g('n')??'').trim(),pr=num(g('pc')),cb=cbs(g('cb')),o={row:IMP.hdrRow+i+1,n,cb,pres:String(g('pres')??'').trim(),sec:String(g('sec')??'').trim(),...stkv(g('stk'))};
+  o.pc=pr==null?null:pr;const ex=(cb&&byCb[cb])||byN[nz(n)];o.ex=ex||null;
+  if(!n)o.err='Falta el nombre';else if(pr!=null&&(isNaN(pr)||pr<=0||pr>100000))o.err='Precio inválido';else if(!ex&&pr==null)o.err='Producto nuevo sin precio';
+  if(!o.err){const k=cb||'#'+nz(n);if(seen.has(k))o.dup='Repetido en el archivo';else if(!ex&&pend.has(nz(n)))o.dup='Ya está en revisión';seen.add(k)}
+  o.kind=o.err?'err':o.dup?'dup':ex?(o.pc!=null&&o.pc!==ex.pc?'upd':'same'):'new';return o})}
+const KL={err:['bad','❌ Error'],dup:['ex','↩️ Se omite'],upd:['ok','💲 Actualiza'],same:['','✔️ Sin cambio de precio'],new:['ex','🆕 Nuevo (a revisión)']};
+function impView(){const s=myStore();if(!s)return tGate();const back=`<button class="btn sec sm" style="margin:0 0 8px" onclick="IMPreset();go('prods')">← Productos</button>`;
+ const top=`${tHead(s)}${back}<h2>📥 Importar productos</h2><div class="muted">Sube tu lista en Excel (.xlsx, .xls) o CSV. Los productos que ya tienes se actualizan al instante (precio y disponibilidad, cuenta como confirmación de precios). Los nuevos se envían al dueño para revisión, sin foto. Máximo ${MAXR} filas.</div>`;
+ const pick=`<div class="card" id="impick"><div class="row" style="gap:8px;flex-wrap:wrap"><label class="btn" id="impbtn" style="margin:0;flex:1;text-align:center">📂 Elegir archivo<input id="impf" type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="display:none" onchange="impFile(this)"></label><button class="btn sec" id="impplant" style="margin:0;flex:1" onclick="impTpl()">⬇️ Descargar plantilla</button></div>${IMP&&IMP.name?`<div class="muted">Archivo: <b>${esc(IMP.name)}</b></div>`:''}${IMP&&IMP.err?`<div class="warn">${esc(IMP.err)}</div>`:''}</div>`;
+ if(!IMP||!IMP.rows)return top+pick;
+ if(IMP.res){const R=IMP.res;return top+`<div class="card" id="impres"><h3>✅ Importación terminada</h3><div class="kv pay"><span>💲 Precios actualizados</span><b>${R.upd}</b><span>✔️ Sin cambio de precio (confirmados)</span><b>${R.same}</b><span>🆕 Nuevos enviados a revisión</span><b>${R.nuevos}</b><span>↩️ Omitidos (repetidos)</span><b>${R.dup}</b><span>❌ Con error</span><b>${R.errs.length}</b></div>${R.errs.length?`<div class="muted">${R.errs.slice(0,30).map(e=>'Fila '+e.i+': '+esc(e.msg)).join('<br>')}</div>`:''}${R.fail?`<div class="warn">${esc(R.fail)}</div>`:''}<button class="btn" onclick="IMPreset();go('prods')">Ver mis productos</button><button class="btn sec" onclick="IMPreset();render()">Importar otro archivo</button></div>`}
+ const L=parsed(),c=k=>L.filter(o=>o.kind===k).length,ok=L.filter(o=>!o.err&&!o.dup).length,V=(IMP.only?L.filter(o=>o.err||o.dup):L).slice(0,300);
+ const sel=k=>`<select id="map-${k}" onchange="impMap('${k}',this.value)"><option value="-1">(no usar)</option>${IMP.head.map((h,i)=>`<option value="${i}" ${IMP.map[k]===i?'selected':''}>${esc(h)}</option>`).join('')}</select>`;
+ return top+pick+`<div class="card" id="impmap"><h3>Columnas</h3><div class="muted">Revisa que cada dato esté en la columna correcta.</div><div class="grid">${F.map(([k,l])=>`<div><label>${l}${k==='n'?' *':''}</label>${sel(k)}</div>`).join('')}</div></div>
+ <div class="card" id="impsum"><div class="kv pay"><span>Filas leídas</span><b>${L.length}</b><span>💲 Actualizan precio</span><b>${c('upd')}</b><span>✔️ Sin cambio de precio</span><b>${c('same')}</b><span>🆕 Nuevos (a revisión)</span><b>${c('new')}</b><span>↩️ Se omiten</span><b>${c('dup')}</b><span>❌ Con error</span><b class="${c('err')?'bad':''}">${c('err')}</b></div>
+ <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" style="width:20px;height:20px" ${IMP.only?'checked':''} onchange="impOnly(this.checked)"> Ver solo errores y omitidos</label></div>
+ <div class="card" id="imprev" style="overflow-x:auto"><table class="imptbl"><thead><tr><th>Fila</th><th>Producto</th><th>Precio</th><th>Estado</th></tr></thead><tbody>${V.map(o=>`<tr class="${o.err?'imperr':o.dup?'impdup':''}"><td>${o.row}</td><td><b>${esc(o.n||'—')}</b>${o.pres?' <span class="muted">'+esc(o.pres)+'</span>':''}${o.cb?'<br><small class="muted">'+esc(o.cb)+'</small>':''}${o.stk!=null?'<br><small class="muted">Exist.: '+o.stk+'</small>':o.disp===false?'<br><small class="muted">Agotado</small>':''}</td><td>${o.pc==null?'—':isNaN(o.pc)?'<b class="bad">?</b>':mx(o.pc)}${o.kind==='upd'?'<br><small class="muted">antes '+mx(o.ex.pc)+'</small>':''}</td><td><span class="tag ${KL[o.kind][0]}">${KL[o.kind][1]}</span>${o.err||o.dup?'<br><small>'+esc(o.err||o.dup)+'</small>':''}</td></tr>`).join('')}</tbody></table>${L.length>V.length&&!IMP.only?`<div class="muted">Mostrando 300 de ${L.length} filas.</div>`:''}</div>
+ <button class="btn" id="impgo" ${ok&&IMP.map.n>=0?'':'disabled'} onclick="impGo()">${IMP.busy?'⏳ '+esc(IMP.busy):`✅ Importar ${ok} producto${ok===1?'':'s'}`}</button>${TNOTE}`}
+window.IMPreset=()=>{IMP=null};
+window.impGo=async()=>{if(IMP.busy)return;const s=myStore();const L=parsed().filter(o=>!o.err&&!o.dup);if(!L.length)return;
+ const nw=L.filter(o=>o.kind==='new').length;if(!confirm(`Se actualizarán ${L.length-nw} productos y se enviarán ${nw} nuevos al dueño para revisión. ¿Continuar?`))return;
+ const R={upd:0,same:0,nuevos:0,dup:0,errs:[]};try{if(BK.push)await BK.push()}catch(e){}
+ for(let i=0;i<L.length;i+=CHUNK){IMP.busy=`Importando ${Math.min(i+CHUNK,L.length)} de ${L.length}…`;render();
+  const rows=L.slice(i,i+CHUNK).map(o=>{const r={row:o.row,n:o.n,pc:o.pc,cb:o.cb||null,pres:o.pres||null,sec:o.sec||null};if(o.stk!=null)r.stk=o.stk;if(o.disp!=null)r.disp=o.disp;return r});
+  try{const x=await BK.rpc('import_store_products',{p_store:s.id,p_rows:rows});['upd','same','nuevos','dup'].forEach(k=>R[k]+=x[k]);R.errs.push(...x.errs)}catch(e){R.fail=`Se detuvo en la fila ${L[i].row}: ${e.message}. Lo anterior sí se guardó; puedes volver a subir el archivo (no se duplica).`;break}}
+ IMP.busy=null;IMP.res=R;try{await BK.pull()}catch(e){}render();toast('Importación terminada')};
+window.impTpl=async()=>{try{await loadX()}catch(e){return toast(e.message)}const ws=XLSX.utils.aoa_to_sheet([['Nombre','Precio','Código de barras','Existencia','Unidad','Categoría'],['Coca-Cola 600 ml',17.5,'7501055300075',24,'600 ml','Bebidas'],['Galletas Marías',14,'7501000111206',0,'170 g','Galletas']]);
+ ws['!cols']=[{wch:30},{wch:10},{wch:18},{wch:11},{wch:12},{wch:14}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Productos');XLSX.writeFile(wb,'plantilla_productos_mandados.xlsx')};
+if(typeof TV!=='undefined'){TV.imp=impView;const P0=TV.prods;TV.prods=function(){const h=P0();return h.replace('<button class="btn sec" onclick="go(\'sol\')">➕ Solicitar un producto nuevo</button>','<button class="btn sec" id="impopen" onclick="impOpen()">📥 Importar productos</button><button class="btn sec" onclick="go(\'sol\')">➕ Solicitar un producto nuevo</button>')}}
+})();

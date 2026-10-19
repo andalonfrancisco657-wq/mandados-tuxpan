@@ -80,3 +80,6 @@ body.tienda .top{background:#ea580c}body.tienda .btn:not(.sec){background:#ea580
 @media print{body *{visibility:hidden}.nota,.nota *{visibility:visible}.nota{position:absolute;left:0;top:0;width:100%;border:0;margin:0}.noprint,#tnewban,#toast,nav,header,.demo{display:none!important}}
 
 .mapslot{height:52vh;min-height:300px;border-radius:12px;overflow:hidden;margin:8px 0;border:1px solid #e5e7eb}@media(min-width:700px){.mapslot{height:60vh}}.mapleg{font-size:12px}.ralert{z-index:1000;flex-direction:column;align-items:stretch;border-color:#b45309}.line.drv .btn{margin-top:6px}
+.imptbl{width:100%;border-collapse:collapse;font-size:14px}.imptbl th,.imptbl td{padding:6px 4px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:top}.imptbl th{font-size:12px;color:#6b7280}
+.imptbl tr.imperr{background:#fee2e2}.imptbl tr.impdup{background:#f3f4f6;color:#6b7280}#imprev{max-height:60vh;overflow:auto}#impmap select{width:100%}
+#impmap select{padding:9px;font-size:15px;border:1px solid #d1d5db;border-radius:8px;background:#fff;margin-top:4px}
