@@ -72,11 +72,12 @@ BK.saveAccts=A=>{const m=BK.ME;if(!m||m.anon)return;const a=A[m.email];if(a)BK.s
 BK.saveProfile=async a=>{const m=BK.ME;if(!m)return;const data={dirs:a.dirs||[],tarjetas:(a.tarjetas||[]).map(c=>({id:c.id,nombre:c.nombre||'',last4:String(c.last4||'').slice(-4),marca:c.marca||'Débito',exp:c.exp||'',t:c.t||Date.now()}))};
  m.nombre=a.nombre;m.tel=a.tel;m.data=data;const {error}=await sb.from('profiles').update({nombre:a.nombre,tel:a.tel,data}).eq('id',m.id);if(error)say('No se guardó tu perfil: '+error.message)};
 // ---- fotos privadas (INE, selfie, tickets)
-const bucketOf=k=>/^reg:.*:selfie$/.test(k)?'selfies':/^reg:/.test(k)?'ine':/^tk:/.test(k)?'tickets':null;
+const bucketOf=k=>/^(prod|preq):\d+:/.test(k)?'product-photos':/^reg:.*:selfie$/.test(k)?'selfies':/^reg:/.test(k)?'ine':/^tk:/.test(k)?'tickets':null;
 BK.upPhoto=async(k,v)=>{const b=bucketOf(k),s=await BK.session();if(!b||!s||typeof v!=='string')return;const blob=await (await fetch(v)).blob();
- const path=s.user.id+'/'+k.replace(/[^a-zA-Z0-9._-]/g,'_')+'.jpg';const {error}=await sb.storage.from(b).upload(path,blob,{upsert:true,contentType:blob.type||'image/jpeg'});if(error)throw error;
- await BK.rpc('photo_register',{p_key:k,p_bucket:b,p_path:path})};
-BK.getPhoto=async k=>{if(!bucketOf(k)||!(await BK.session()))return null;const r=await BK.rpc('photo_lookup',{p_key:k});if(!r)return null;const {data,error}=await sb.storage.from(r.bucket).download(r.path);if(error)return null;
+ const path=(b==='product-photos'?k.split(':')[1]:s.user.id)+'/'+k.replace(/[^a-zA-Z0-9._-]/g,'_')+'.jpg';const {error}=await sb.storage.from(b).upload(path,blob,{upsert:true,contentType:blob.type||'image/jpeg'});if(error)throw error;
+ if(b!=='product-photos')await BK.rpc('photo_register',{p_key:k,p_bucket:b,p_path:path})};
+BK.prodUrl=k=>sb.storage.from('product-photos').getPublicUrl(k.split(':')[1]+'/'+k.replace(/[^a-zA-Z0-9._-]/g,'_')+'.jpg').data.publicUrl;
+BK.getPhoto=async k=>{if(bucketOf(k)==='product-photos'){const u=BK.prodUrl(k);try{const r=await fetch(u,{method:'HEAD'});return r.ok?u:null}catch(e){return null}}if(!bucketOf(k)||!(await BK.session()))return null;const r=await BK.rpc('photo_lookup',{p_key:k});if(!r)return null;const {data,error}=await sb.storage.from(r.bucket).download(r.path);if(error)return null;
  return await new Promise(res=>{const f=new FileReader();f.onload=()=>res(f.result);f.readAsDataURL(data)})};
 // ---- tiempo real + respaldo cada 30 s
 BK.live=async()=>{if(BK.ch){sb.removeChannel(BK.ch);BK.ch=null}if(!(await BK.session()))return;
