@@ -506,6 +506,7 @@ async function submitReg(){rgCollect();if(!RG.acepta)return rgErr('Debes aceptar
  try{for(const x of ['ineF','ineR','selfie'])await fput(k(x),RG[x])}catch(e){return rgErr('No se pudieron guardar las fotos en este celular ('+e.message+')')}
  const t=Date.now(),newRep=!RG.fixed;
  DB.regs=DB.regs||{};DB.regs[n]={id,nombre:n,calle:RG.calle,num:RG.num,col:RG.col,ciudad:RG.ciudad,tel:RG.tel,curp:RG.curp,fotos:{ineF:k('ineF'),ineR:k('ineR'),selfie:k('selfie')},bio:!!(RG.cred||l?.cred),acepta:t,reglas:t,st:'pendiente',t,envios:(old?.envios||0)+1,prev:old&&old.st==='rechazado'?{motivo:old.motivo,nota:old.nota}:null};
+ try{if(window.vehPayload)Object.assign(DB.regs[n],await vehPayload(k))}catch(e){delete DB.regs[n];return rgErr(e.message)}
  try{await BK.rpc('rep_register',{p_nombre:n,p_data:DB.regs[n]});BK.ME.role='repartidor';BK.ME.nombre=n}catch(e){delete DB.regs[n];return rgErr(e.message)}
  if(!DB.reps.includes(n))DB.reps.push(n);DB.audit.push({t,key:'rep:'+n,acc:old?'Registro reenviado':'Registro enviado',mot:'',nota:'Esperando revisión'});save();
  if(newRep||!l){localStorage.setItem('rep_local',JSON.stringify({name:n,hash:await sha('pin:'+RG.pin),...(RG.cred?{cred:RG.cred}:{})}))}else if(RG.cred){l.cred=RG.cred;localStorage.setItem('rep_local',JSON.stringify(l))}

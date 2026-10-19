@@ -35,3 +35,5 @@ Ojo: límite de 5 pedidos/10 min por cliente y 15 códigos incorrectos/hora por 
 - `store_accordion_ui.py` (v30): cortina de tiendas, una abierta a la vez, recuerda la abierta; dueño 390x844 y directivo tablet.
 - `sanctions.mjs` (v31, desde /workspace/t, SID= PID=): sanciones solo directivo por RPC, dueño las ve, cliente suspendido no pide, repartidor dado de baja no comparte ubicación ni toma pedidos, revisión de registros por RPC, auditoría y tiempo real.
 - `sanctions_ui.py` (v31): Directivo da de baja → Dueño lo ve en otra sesión sin recargar.
+- `vehicle_license.mjs` (v32, desde /workspace/t, SID= PID=; pausa en EXPIRE_NOW para vencer la licencia de prueba por SQL): validación, privacidad de fotos, bloqueo por licencia vencida, renovación y revisión.
+- `vehicle_license_ui.py` (v32): paso de vehículo en el registro, revisión del dueño, aviso de vencimiento, repartidor existente.
