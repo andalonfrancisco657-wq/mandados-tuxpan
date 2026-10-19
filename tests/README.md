@@ -20,3 +20,7 @@ Limpieza: borrar solo por IDs exactos lo creado en la corrida.
 - `step_proofs_ui.py` (+ `step_helper.mjs` copiado a /workspace/t): recogido, código de entrega, entrega con foto, vista del dueño.
 Ojo: límite de 5 pedidos/10 min por cliente y 15 códigos incorrectos/hora por repartidor.
 `supabase_e2e.py` usa el flujo anterior del repartidor (botón “Pasar a…”) y ya no aplica a recogido/entregado.
+
+## Pin del domicilio (v25)
+- `client_pin.mjs` (node): visibilidad del pin (cliente/asignado/dueño sí; tienda/otros repartidores no), distancia en entrega con código y con foto (rechazo >150 m o sin GPS).
+- `client_pin_ui.py`: el cliente marca su casa, el repartidor ve el mapa, el dueño ve la distancia.

@@ -51,7 +51,7 @@ const fresh=d=>Date.now()-d.t<STALE;
 function mapView(){const S=(DB.stores||[]),sel=S.find(s=>s.id===MP.sel),W=S.filter(s=>waitingOf(s.id).length),noLoc=S.filter(s=>s.lat==null);
  let h=`<button class="btn sec sm" style="margin:0 0 8px" onclick="MP.sel=null;MP.set=null;go('vivo')">← Seguimiento</button><h2>🗺️ Mapa</h2>
  ${MP.set?`<div class="warn" id="setbanner">📍 Toca el mapa donde está <b>${esc((S.find(s=>s.id===MP.set)||{}).n||'')}</b>. <button class="btn sec sm" style="margin:4px 0 0" onclick="MP.set=null;render()">Cancelar</button></div>`:''}
- <div id="mapslot" class="mapslot"></div><div class="muted mapleg">🟢 Repartidor disponible · ⚪ Sin señal reciente (más de 5 min) · 🏪 Tienda (pedidos por recoger)</div>`;
+ <div id="mapslot" class="mapslot"></div><div class="muted mapleg">🟢 Repartidor disponible · ⚪ Sin señal reciente (más de 5 min) · 🏪 Tienda (pedidos por recoger) · 🔵 Domicilio de pedido activo</div>`;
  if(sel){const w=waitingOf(sel.id),free=w.filter(o=>!o.rep),D=(MP.drivers||[]).map(d=>({...d,dist:sel.lat!=null?km(sel.lat,sel.lng,d.lat,d.lng):null})).sort((a,b)=>(a.dist??1e9)-(b.dist??1e9));
   const al=(MP.alerts||[]).filter(a=>a.store_id===sel.id).slice(0,8),dn=id=>(MP.drivers.find(d=>d.id===id)||{}).nombre||'Repartidor';
   h+=`<div class="card" id="selstore"><div class="row"><b>🏪 ${esc(sel.n)}</b><button class="btn sec sm" style="margin:0" onclick="MP.sel=null;render()">✕</button></div><div class="muted">📍 ${esc(sel.col||'')} · ${w.length} pedido${w.length===1?'':'s'} por recoger${free.length?` (${free.length} sin repartidor)`:''}</div>
@@ -67,6 +67,7 @@ function mapView(){const S=(DB.stores||[]),sel=S.find(s=>s.id===MP.sel),W=S.filt
 function draw(){if(!map)return;lay.clearLayers();const pts=[];
  (DB.stores||[]).filter(s=>s.lat!=null).forEach(s=>{const n=waitingOf(s.id).length;const m=L.marker([s.lat,s.lng],{opacity:n||s.id===MP.sel?1:.55}).addTo(lay).bindTooltip(`🏪 ${s.n}${n?' ('+n+')':''}`,{permanent:!!n||s.id===MP.sel,direction:'top',offset:[0,-30]});m.on('click',()=>{MP.sel=s.id;render()});if(n)pts.push([s.lat,s.lng])});
  (MP.drivers||[]).forEach(d=>{L.circleMarker([d.lat,d.lng],{radius:9,color:'#fff',weight:2,fillColor:fresh(d)?'#16a34a':'#9ca3af',fillOpacity:1}).addTo(lay).bindTooltip(`🛵 ${d.nombre} · ${fresh(d)?ago(d.t):'sin señal reciente'}`,{permanent:true,direction:'right',offset:[10,0]});pts.push([d.lat,d.lng])});
+ (DB.orders||[]).filter(o=>o.dlat!=null&&!o.cancel&&!done(o)).forEach(o=>{L.circleMarker([o.dlat,o.dlng],{radius:8,color:'#fff',weight:2,fillColor:'#2563eb',fillOpacity:1}).addTo(lay).bindTooltip(`🏠 #${o.id}${o.rep?' · '+o.rep:''}`,{direction:'top'})});
  const s=(DB.stores||[]).find(x=>x.id===MP.sel);if(s&&s.lat!=null&&!map._mtSel){map.setView([s.lat,s.lng],15);map._mtSel=MP.sel}else if(!map._mtFit&&pts.length){map.fitBounds(pts,{padding:[30,30],maxZoom:15});map._mtFit=1}}
 async function attach(){const slot=document.getElementById('mapslot');if(!slot)return;await loadL();if(!document.getElementById('mapslot'))return;
  if(!div){div=document.createElement('div');div.style.cssText='width:100%;height:100%';}

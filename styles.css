@@ -84,3 +84,4 @@ body.tienda .top{background:#ea580c}body.tienda .btn:not(.sec){background:#ea580
 .imptbl tr.imperr{background:#fee2e2}.imptbl tr.impdup{background:#f3f4f6;color:#6b7280}#imprev{max-height:60vh;overflow:auto}#impmap select{width:100%}
 #impmap select{padding:9px;font-size:15px;border:1px solid #d1d5db;border-radius:8px;background:#fff;margin-top:4px}
 .vfy{margin:6px 0;font-size:14px}.vf{padding:4px 8px;border-radius:8px;margin:3px 0}.vf.ok{background:#dcfce7}.vf.bad{background:#fef3c7}
+.pinslot{height:260px!important;min-height:0!important;margin:6px 0}.rpinslot{height:200px!important;min-height:0!important;margin:6px 0}
