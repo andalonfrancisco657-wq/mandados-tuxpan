@@ -9,8 +9,15 @@ const J=x=>JSON.stringify(x===undefined?null:x),clone=x=>x==null?x:JSON.parse(J(
 const noTab=s=>{const c=Object.assign({},s);delete c.tab;return c};
 const BK={sb,ME:null,boot:null,ready:false,snap:null,err:null};
 window.BK=BK;
-BK.session=async()=>(await sb.auth.getSession()).data.session;
-BK.rpc=async(fn,args)=>{const {data,error}=await sb.rpc(fn,args||{});if(error)throw new Error(error.message);return data};
+BK._chk=null;
+// v26: si la sesión guardada ya no existe en el servidor (usuario borrado, sesión revocada), se limpia y se sigue como nuevo.
+BK.checkSession=()=>BK._chk||(BK._chk=(async()=>{try{const ss=(await sb.auth.getSession()).data.session;if(!ss)return;const {data,error}=await sb.auth.getUser();
+  if(error&&(error.status===401||error.status===403||error.status===404||/not.?found|does not exist|invalid|expired|session/i.test(error.message||''))||(!error&&!data.user)){console.warn('sesión inválida, se reinicia',error&&error.message);
+   try{await sb.auth.signOut({scope:'local'})}catch(_){}try{Object.keys(localStorage).filter(k=>k==='mt-auth-'+R||k.startsWith('mt-auth-'+R+'-')).forEach(k=>localStorage.removeItem(k))}catch(_){}BK.ME=null;BK.stale=true}}catch(e){}})());
+BK.session=async()=>{await BK.checkSession();return (await sb.auth.getSession()).data.session};
+BK.rpc=async(fn,args,_r)=>{await BK.checkSession();const {data,error}=await sb.rpc(fn,args||{});
+ if(error&&!_r&&/^Sin sesi[oó]n$/.test(error.message)){BK._chk=null;await BK.checkSession();if(BK.stale&&!(await sb.auth.getSession()).data.session&&['tienda','cliente'].includes(window.APP_ROLE)){BK.stale=false;const a=await sb.auth.signInAnonymously();if(!a.error){try{BK.boot=await BK.rpc('app_bootstrap',{},1);BK.ME=BK.boot.me}catch(_){}return BK.rpc(fn,args,1)}}}
+ if(error)throw new Error(error.message);return data};
 const snapOf=()=>clone(Object.assign({orders:DB.orders,stores:(DB.stores||[]).map(noTab),cfg:DB.cfg,dirCfg:DB.dirCfg,audit:DB.audit},...DICTS.concat(LISTS).map(k=>({[k]:DB[k]}))));
 function apply(bs,orders){
  if(bs){BK.boot=bs;BK.ME=bs.me||null;
