@@ -32,3 +32,18 @@ const OK={deactivate:'Tienda desactivada',delete:'Tienda eliminada',reactivate:'
 window.STact=async(id,a)=>{let m='';if(a==='deactivate'||a==='delete'){m=prompt(ASK[a]+'\n\nMotivo (opcional):','');if(m===null)return}else if(!confirm(ASK[a]))return;
  try{const cat=await BK.rpc('store_state',{p_store:id,p_action:a,p_motivo:m||''});if(Array.isArray(cat))DB.stores=cat;toast(OK[a]);await BK.pull();render()}catch(e){toast(e.message)}};
 })();
+// v30: cortina (acordeón): una fila por tienda; al tocar se abre su tarjeta completa; solo una abierta
+(function(){
+let open=+localStorage.getItem('mt-stopen')||0;
+const css=document.createElement('style');css.textContent=`.sth{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;margin:6px 0;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:pointer;user-select:none}
+.sth b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sth .chev{transition:transform .2s;color:#64748b}.sth.on{border-radius:12px 12px 0 0;margin-bottom:0}.sth.on .chev{transform:rotate(90deg)}
+.stbody{display:none;margin-top:0!important;border-radius:0 0 12px 12px!important}.stbody.on{display:block;animation:stIn .18s ease-out}@keyframes stIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}`;document.head.appendChild(css);
+const badge=s=>({act:'<span class="tag ok">Activa</span>',in:'<span class="tag bad">Inactiva</span>',del:'<span class="tag bad">Eliminada</span>'})[STst(s)];
+window.STfold=root=>{root=root||document;root.querySelectorAll('.stc[data-st],.dts[data-dt]').forEach(c=>{if(c.dataset.fold)return;const id=+(c.dataset.st||c.dataset.dt),s=store(id);if(!s)return;c.dataset.fold=1;
+ const h=document.createElement('div');h.className='sth';h.id='sth'+id;h.dataset.sth=id;h.innerHTML=`<b>${s.cat==='farmacia'?'💊':'🏪'} ${esc(s.n)}</b><span style="display:flex;gap:6px;align-items:center">${badge(s)}<span class="chev">›</span></span>`;
+ h.onclick=()=>STopen(id);c.parentNode.insertBefore(h,c);c.classList.add('stbody');if(id===open){c.classList.add('on');h.classList.add('on')}})};
+window.STopen=id=>{open=open===id?0:id;localStorage.setItem('mt-stopen',open);document.querySelectorAll('.sth').forEach(h=>{const on=+h.dataset.sth===open;h.classList.toggle('on',on);const c=h.nextElementSibling;if(c)c.classList.toggle('on',on)});
+ if(open){const h=document.getElementById('sth'+open);if(h){const r=h.getBoundingClientRect();if(r.top<60||r.top>innerHeight-120)h.scrollIntoView({behavior:'smooth',block:'start'})}}};
+const R=render;render=function(){R.apply(this,arguments);if(view==='tiendas'||view==='dtiendas')STfold()};
+const Q=STq;STq=function(){Q.apply(this,arguments);STfold(document.getElementById('stres'))};
+})();
