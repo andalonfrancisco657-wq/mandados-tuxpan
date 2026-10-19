@@ -78,3 +78,5 @@ body.tienda .top{background:#ea580c}body.tienda .btn:not(.sec){background:#ea580
 @media (min-width:760px){body.tienda .tcols.four{grid-template-columns:1fr 1fr;align-items:start}}@media (min-width:1180px){body.tienda .tcols.four{grid-template-columns:1fr 1fr 1fr 1fr}}
 .ntab tfoot td:last-child{text-align:right}
 @media print{body *{visibility:hidden}.nota,.nota *{visibility:visible}.nota{position:absolute;left:0;top:0;width:100%;border:0;margin:0}.noprint,#tnewban,#toast,nav,header,.demo{display:none!important}}
+
+.mapslot{height:52vh;min-height:300px;border-radius:12px;overflow:hidden;margin:8px 0;border:1px solid #e5e7eb}@media(min-width:700px){.mapslot{height:60vh}}.mapleg{font-size:12px}.ralert{z-index:1000;flex-direction:column;align-items:stretch;border-color:#b45309}.line.drv .btn{margin-top:6px}
