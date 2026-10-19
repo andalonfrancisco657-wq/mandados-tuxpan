@@ -1,4 +1,4 @@
-// Mandados Tuxpan - prototipo demo (localStorage, sin servidor)
+// Mandados Tuxpan - datos compartidos en Supabase (backend.js); localStorage solo como caché del último estado
 const WA='523190000000'; // EJEMPLO: cambiar por el WhatsApp real del negocio
 const ST=['Recibido','En camino a la tienda','Comprando','En camino','Entregado'];
 const STP=['Recibido','Recolectando','En camino','Entregado']; // paquetes
@@ -50,7 +50,8 @@ if(DB&&DB.v===11){addV12(DB);DB.v=12} // v11→v12: existencias (productos exist
  // v5→v6: registro de repartidores; Juan y Lupita (ejemplo) quedan verificados // v4→v5: agrega chat a cada pedido sin borrar datos // v3→v4: agrega directivo sin borrar datos // v2→v3: conserva tiendas, productos, zonas, repartidores
 if(!DB||DB.v!==SV){const n=seed();if(DB){n.cfg=DB.cfg||n.cfg;n.reps=DB.reps||n.reps;if(DB.regs)n.regs=Object.assign(n.regs||{},DB.regs);const old=(DB.orders||[]).filter(o=>!o.ej&&o.det);n.orders=n.orders.concat(old);n.mine=n.mine.concat((DB.mine||[]).filter(id=>old.some(o=>o.id===id)))}DB=n;if(DB.cfg.repPct==null)DB.cfg.repPct=75}
 if(DB){DB.dirCfg=DB.dirCfg||{tarde:60};if(DB.dirCfg.mrgSug==null)DB.dirCfg.mrgSug=10} // margen sugerido para productos nuevos (10%), sin tocar precios existentes
-let lastRaw=null;const save=()=>{lastRaw=JSON.stringify(DB);localStorage.setItem('mandados',lastRaw)};save();
+DB.orders=(DB.orders||[]).filter(o=>o.srv);DB.mine=[]; // los pedidos vienen del servidor
+let lastRaw=null;const save=()=>{lastRaw=JSON.stringify(DB);localStorage.setItem('mandados',lastRaw);if(window.BK)BK.queue()};save();
 let edSt=null;let role=window.APP_ROLE||'cliente', view='home', sel=null, track=null, myRep=DB.reps[0];
 const toast=m=>{const e=$('#toast');e.textContent=m;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',2200)};
 const steps=o=>o.cat==='paquetes'?STP:ST;
@@ -59,7 +60,7 @@ const done=o=>o.st>=steps(o).length-1||!!o.cancel;
 const tag=o=>`${o.ej?'<span class="tag ex">EJEMPLO</span> ':''}<span class="tag ${done(o)?'ok':''}">${o.cancel?'Cancelado':stName(o)}</span>${typeof isLate!=='undefined'&&isLate(o)?' <span class="tag bad">⏰ Tarde ('+durMin(o)+' min)</span>':''}${typeof overch!=='undefined'&&overch(o)?' <span class="tag bad">⚠️ Cobró de más: '+mx(o.cobradoMonto)+'</span>':''}${typeof tkFlag!=='undefined'&&tkFlag(o)?' <span class="tag bad">🧾 Ticket no cuadra</span>':''}${o.prep&&!o.compra&&!done(o)?' <span class="tag ok">🏪 Listo para recoger</span>':''}`;
 function summary(o){const d=o.det;if(d.items)return itemsHtml(o);return o.cat==='paquetes'?`De: ${esc(d.de)} → A: ${esc(d.a)} (${esc(d.tam)})`:o.cat==='servicios'?`${esc(d.tipo)} · Ref ${esc(d.ref)} · ${mx(d.monto)}`:esc(d.lista).replace(/\n/g,', ')+(d.tienda?` · ${esc(d.tienda)}`:'')+(d.receta?' · 📷 receta':'')}
 const sub=o=>o.det.items?o.det.items.reduce((a,i)=>a+(i.quit?0:i.p*i.q),0)+Number(o.det.extraEst||0):0;
-const total=o=>o.fee+(o.cat==='servicios'?Number(o.det.monto||0):0)+sub(o);
+const total=o=>o.cobraTotal!=null?+o.cobraTotal:o.fee+(o.cat==='servicios'?Number(o.det.monto||0):0)+sub(o);
 function itemsHtml(o){const d=o.det;return `🏪 <b>${esc(d.tienda)}</b><br>`+d.items.map(i=>`• ${i.quit?'<s>':''}${i.q} × ${esc(i.n)} (${esc(i.pres)}) – ${mx(i.p*i.q)}${i.quit?'</s> <span class="tag bad">Quitado</span>':i.na?(i.res==='cambiar'?' <span class="tag ex">🔁 Cambiar por similar</span>':' <span class="tag ex">⚠️ No disponible</span>'):''}`).join('<br>')+(d.extra?`<br>• Extra: ${esc(d.extra)} – <i>${mx(d.extraEst)} est. (por confirmar)</i>`:'')+(d.receta?'<br>📷 Receta adjunta':'')+`<br><b>Productos: ${mx(sub(o))}</b>`}
 const card=(o,extra='')=>`<div class="card"><div class="row"><b>${CATS[o.cat][0]} #${o.id} ${CATS[o.cat][1]}</b><span>${tag(o)}${bdg(o)}</span></div>
 <div class="muted">${summary(o)}</div><div class="muted">${o.src==='invitado'?'<span class="tag ex">Invitado</span>':o.src==='cuenta'?'<span class="tag ok">Cuenta</span>':''} 👤 ${esc(o.nombre||'')} · 📞 <a href="tel:${esc(o.tel)}">${esc(o.tel)}</a></div><div class="muted">📍 ${esc(o.dir)}${o.senas?' · 🏠 '+esc(o.senas):''}</div>
@@ -69,7 +70,7 @@ function tabs(){const T={dir:[['home','📊','Panel'],['cli','👥','Clientes'],
  $('#tabs').innerHTML=T.map(([v,i,l])=>`<button class="${view===v||(v==='home'&&role==='dir'&&['lista','pedido','pagos','pagorep','cuenta','credito','crtienda','precios','dtiendas','dtienda','treq','pchg'].includes(view))||(v==='tiendas'&&['prods','revision','treq','pchg'].includes(view))||(v==='prods'&&view==='home')||(v==='ped'&&['surtir','nota'].includes(view))||(v==='home'&&view==='vivo')||(v==='pagos'&&['pagorep','cuenta','credito','crtienda'].includes(view))||(v==='sol'&&view==='solic')?'on':''}" onclick="go('${v}')"><b>${i}</b>${l}</button>`).join('')}
 function go(v){if(['home','cli','rep','due','quejas','mas'].includes(v)){pBack=null;oBack=null}if(v!==view&&['cli','rep','due','quejas'].includes(v)){pq='';pf='todos'}view=v;render();scrollTo(0,0)}
 function profBtn(){let b=$('#prof');if(!b){b=document.createElement('button');b.id='prof';b.className='profbtn';b.onclick=()=>go(acct()?'perfil':'auth');document.querySelector('.top').appendChild(b)}b.textContent=acct()?'👤 '+acct().nombre.split(' ')[0]:'👤 '+(isGuest()?'Invitado':'Mi cuenta')}
-function render(){if(locked()){$('#tabs').innerHTML='';$('#app').innerHTML=gateView();return}if(role==='cliente'){if(!sess()&&!AV[view])view='auth';if(AV[view]){$('#tabs').innerHTML='';$('#app').innerHTML=AV[view]();profBtn();return}profBtn();const a=acct(),x=a&&sancSt('cli:'+a.email);if(x){$('#tabs').innerHTML='';$('#app').innerHTML=blockedView(x,'Cuenta bloqueada')+'<button class="btn sec" onclick="localStorage.removeItem(SESS);go(\'auth\')">Cerrar sesión</button>';return}}
+function render(){if(locked()){$('#tabs').innerHTML='';$('#app').innerHTML=gateView();return}if(role==='cliente'){if(!sess()&&!AV[view])view='auth';if(AV[view]){$('#tabs').innerHTML='';$('#app').innerHTML=AV[view]();profBtn();return}profBtn();const a=acct(),x=a&&sancSt('cli:'+a.email);if(x){$('#tabs').innerHTML='';$('#app').innerHTML=blockedView(x,'Cuenta bloqueada')+'<button class="btn sec" onclick="cliOut()">Cerrar sesión</button>';return}}
  if(role==='admin'){const x=sancSt('due:'+DB.duenos[0]);if(x){$('#tabs').innerHTML='';$('#app').innerHTML=blockedView(x,'Acceso del dueño bloqueado');return}}tabs();$('#app').innerHTML=({cliente:C,repartidor:R,admin:A,dir:D,tienda:TV}[role][view]||(()=>''))()}
 
 
@@ -90,16 +91,20 @@ function entrega(){const z=DB.cfg.zonas;return `<div class="card"><h3>Entrega</h
   <div class="card"><div class="row" id="subrow"><span>Productos</span><b id="sub"></b></div><div class="row"><span>Envío estimado</span><b id="fee"></b></div><div class="row"><span>Total estimado*</span><span class="total" id="tot"></span></div><div class="muted">*El costo de los productos se cobra según el ticket de la tienda.</div></div>
   `}
 
-const SYNC='<div class="warn">ℹ️ Los pedidos y los PIN solo se sincronizan entre celulares cuando la app se conecte a un servidor. Por ahora cada celular guarda sus propios datos.</div>';
+const SYNC='';
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 const SK='unlock_'+role;
 const HK=role==='dir'?'dir_hash':'owner_hash',PF=role==='dir'?'dir:':'own:',GT=role==='dir'?'Panel directivo':'Panel del dueño';
-function locked(){if(role==='tienda')return !tSessOk();return role!=='cliente'&&sessionStorage.getItem(SK)!=='1'}
-function logout(){sessionStorage.removeItem(SK);render()}
-function unlock(){sessionStorage.setItem(SK,'1');view='home';render()}
+function locked(){if(role==='cliente')return false;if(!BK.ready)return true;if(role==='tienda')return !tSessOk();const m=BK.ME;if(!m||m.anon)return true;if(role==='dir')return m.role!=='directivo';if(role==='admin')return !['dueno','directivo'].includes(m.role);if(!localStorage.getItem('rep_local'))return m.role!=='repartidor';return sessionStorage.getItem(SK)!=='1'}
+function logout(){sessionStorage.removeItem(SK);if(role==='admin'||role==='dir'){BK.signOut();return}render()}
+function unlock(){sessionStorage.setItem(SK,'1');if(role==='repartidor'&&BK.ME&&BK.ME.role==='repartidor')myRep=BK.ME.nombre;view='home';render()}
 if(role==='repartidor'){const l=JSON.parse(localStorage.getItem('rep_local')||'null');if(l)myRep=l.name}
 function gateView(){
+ if(!BK.ready)return '<div class="card"><p class="muted">Conectando con el servidor…</p></div>';
  if(role==='tienda')return tGate();
+ if(!BK.ME||BK.ME.anon)return role==='repartidor'?bkAuthView('Acceso repartidor','Entra o crea tu cuenta con correo y contraseña. Después registras tus datos, tu INE y una selfie.'):bkAuthView(GT,role==='dir'?'Entra con tu cuenta. La primera vez activas el directivo con tu código de configuración.':'Entra con tu cuenta de dueño.');
+ if(role==='admin'||role==='dir')return bkRoleView();
+ if(role==='repartidor'&&BK.ME.role!=='repartidor'&&!rgStep)return repFirst();
  if(role==='repartidor'){const l=JSON.parse(localStorage.getItem('rep_local')||'null');
   if(!l)return rgStep?regView():repFirst();
   return repLoginView(l)}
@@ -113,24 +118,24 @@ async function repCreate(){const p=gv('gp1');if(!/^\d{4}$/.test(p))return toast(
 async function repLogin(){const l=JSON.parse(localStorage.getItem('rep_local'));if(await sha('pin:'+gv('gp1'))===l.hash){myRep=l.name;unlock()}else toast('PIN incorrecto')}
 async function ownCreate(){const p=gv('gp1');if(p.length<6)return toast('Mínimo 6 caracteres');if(p!==gv('gp2'))return toast('No coinciden');localStorage.setItem(HK,await sha(PF+p));unlock()}
 async function ownLogin(){if(await sha(PF+gv('gp1'))===localStorage.getItem(HK))unlock();else toast('Contraseña incorrecta')}
-async function ownChange(){if(await sha(PF+gv('op'))!==localStorage.getItem(HK))return toast('Contraseña actual incorrecta');const p=gv('np');if(p.length<6)return toast('Mínimo 6 caracteres');localStorage.setItem(HK,await sha(PF+p));toast('Contraseña cambiada');render()}
+async function ownChange(){const p=gv('np');if(p.length<8)return toast('Mínimo 8 caracteres');try{const {error:e1}=await BK.sb.auth.signInWithPassword({email:BK.ME.email,password:gv('op')});if(e1)return toast('Contraseña actual incorrecta');const {error}=await BK.sb.auth.updateUser({password:p});if(error)return toast(error.message);toast('Contraseña cambiada');render()}catch(e){toast(e.message)}}
 async function setPin(i){const p=gv('pin'+i);if(!/^\d{4}$/.test(p))return toast('PIN de 4 dígitos');DB.repPins=DB.repPins||{};DB.repPins[DB.reps[i]]=await sha('pin:'+p);save();toast('PIN guardado en este celular');render()}
 
 const AK='mandados_accounts',SESS='cli_session';
-const accts=()=>JSON.parse(localStorage.getItem(AK)||'{}'),saveAccts=a=>localStorage.setItem(AK,JSON.stringify(a));
-const sess=()=>JSON.parse(localStorage.getItem(SESS)||'null');
+const accts=()=>BK.accts(),saveAccts=a=>BK.saveAccts(a);
+const sess=()=>{const m=BK.ME;if(m&&!m.anon&&m.role==='cliente')return {type:'acct',email:m.email};const s=JSON.parse(localStorage.getItem(SESS)||'null');return s&&s.type==='guest'?s:null};
 const acct=()=>{const s=sess();return s&&s.type==='acct'?accts()[s.email]||null:null};
 const isGuest=()=>sess()?.type==='guest';
 const myOrd=o=>{const a=acct();return a?o.email===a.email:(DB.mine.includes(o.id)&&o.src!=='cuenta')};
 const dirTxt=d=>d.calle+(d.ref?' ('+d.ref+')':'');
 function useDir(i){const d=acct().dirs[i];$('#dir').value=d.calle;if($('#senas'))$('#senas').value=d.ref||'';$('#zona').value=d.zona;calc()}
 let pre=null;
-const AUTHNOTE='<div class="warn">Versión de prueba: las cuentas se guardan solo en este celular hasta conectar el servidor.</div>';
+const AUTHNOTE='';
 const pwField=(id,ph)=>`<div class="row"><input id="${id}" type="password" placeholder="${ph}" autocomplete="new-password"><button class="btn sec sm" style="margin:0" type="button" onclick="const e=$('#${id}');e.type=e.type==='password'?'text':'password';this.textContent=e.type==='password'?'👁️ Ver':'🙈 Ocultar'">👁️ Ver</button></div>`;
 const zonaSel=(id,v)=>`<select class="f" id="${id}">${DB.cfg.zonas.map((x,i)=>`<option value="${i}" ${v==i?'selected':''}>${esc(x.n)}</option>`).join('')}</select>`;
 const AV={
  auth:()=>`<div style="text-align:center;padding:20px 0"><div style="font-size:60px">🛵</div><h2>Bienvenido a Mandados Tuxpan</h2><p class="muted">Abarrotes, farmacia y paquetes hasta tu puerta.</p></div>
-  <button class="btn" onclick="go('login')">Iniciar sesión</button><button class="btn sec" onclick="pre=null;go('signup')">Crear cuenta</button><button class="btn sec" onclick="localStorage.setItem(SESS,JSON.stringify({type:'guest'}));go('home')">Pedir como invitado</button>${sess()?'<button class="btn sec" onclick="go(\'home\')">← Volver</button>':''}${AUTHNOTE}`,
+  <button class="btn" onclick="go('login')">Iniciar sesión</button><button class="btn sec" onclick="pre=null;go('signup')">Crear cuenta</button><button class="btn sec" onclick="localStorage.setItem(SESS,JSON.stringify({type:'guest'}));BK.anon(true).catch(()=>{});go('home')">Pedir como invitado</button>${sess()?'<button class="btn sec" onclick="go(\'home\')">← Volver</button>':''}${AUTHNOTE}`,
  login:()=>`<h2>Iniciar sesión</h2><div class="card"><label>Correo electrónico</label><input id="le" type="email" inputmode="email" autocomplete="email"><label>Contraseña</label>${pwField('lp','Tu contraseña')}<div id="lerr" class="err"></div>
   <button class="btn" onclick="doLogin()">Entrar</button><p style="text-align:center"><a href="#" onclick="$('#forgot').style.display='block';return false">¿Olvidaste tu contraseña?</a></p><div id="forgot" class="warn" style="display:none">La recuperación por correo funcionará cuando la app se conecte al servidor. Por ahora, crea una cuenta nueva en este celular.</div></div>
   <button class="btn sec" onclick="go('auth')">← Volver</button>${AUTHNOTE}`,
@@ -140,7 +145,7 @@ const AV={
   <button class="btn" onclick="doSignup()">Crear cuenta</button><button class="btn sec" onclick="go('auth')">← Volver</button>${AUTHNOTE}`},
  perfil:()=>{const a=acct();if(!a)return AV.auth();return `<h2>Mi perfil</h2><div class="card"><div class="muted">${esc(a.email)}</div><label>Nombre</label><input id="pn" value="${esc(a.nombre)}"><label>Teléfono</label><input id="pt" type="tel" value="${esc(a.tel)}"></div>
   <div class="card"><h3>Mis direcciones</h3>${a.dirs.map((d,i)=>`<div style="border-bottom:1px solid #f1f5f9;padding-bottom:8px;margin-bottom:8px"><input id="pc${i}" value="${esc(d.calle)}"><div class="grid" style="margin-top:6px">${zonaSel('pz'+i,d.zona)}<input id="pr${i}" value="${esc(d.ref)}" placeholder="Señas del domicilio"></div><button class="btn sec sm" onclick="delDir(${i})">🗑️ Quitar</button></div>`).join('')}
-  <button class="btn sec sm" onclick="saveProf(true)">➕ Agregar dirección</button></div><div class="card"><div class="row"><h3 style="margin:0">💳 Mis tarjetas</h3><span class="tag">${(a.tarjetas||[]).length}</span></div><div class="muted" style="margin-top:6px">${(a.tarjetas||[]).map(c=>esc(c.marca)+' •••• '+esc(c.last4)).join(' · ')||'Sin tarjetas registradas. Con una tarjeta tus pedidos se pagan solos y el repartidor no cobra nada.'}</div><button class="btn sec sm" id="btarj" onclick="tjBack='perfil';go('tarjetas')">💳 Administrar mis tarjetas</button></div><button class="btn" onclick="saveProf()">Guardar cambios</button><button class="btn sec" onclick="localStorage.removeItem(SESS);go('auth')">Cerrar sesión</button>${AUTHNOTE}`},
+  <button class="btn sec sm" onclick="saveProf(true)">➕ Agregar dirección</button></div><div class="card"><div class="row"><h3 style="margin:0">💳 Mis tarjetas</h3><span class="tag">${(a.tarjetas||[]).length}</span></div><div class="muted" style="margin-top:6px">${(a.tarjetas||[]).map(c=>esc(c.marca)+' •••• '+esc(c.last4)).join(' · ')||'Sin tarjetas registradas. Con una tarjeta tus pedidos se pagan solos y el repartidor no cobra nada.'}</div><button class="btn sec sm" id="btarj" onclick="tjBack='perfil';go('tarjetas')">💳 Administrar mis tarjetas</button></div><button class="btn" onclick="saveProf()">Guardar cambios</button><button class="btn sec" onclick="cliOut()">Cerrar sesión</button>${AUTHNOTE}`},
  tarjetas:()=>{const a=acct();if(!a)return AV.auth();const L=a.tarjetas||[];return `<h2>💳 Mis tarjetas</h2>${TJNOTE}<div class="card" id="tjlist"><h3>Tarjetas registradas</h3>${L.map(c=>`<div class="row line tjrow"><span>${tjIcon(c.marca)} <b>${esc(c.marca)} •••• ${esc(c.last4)}</b><br><span class="muted">${esc(c.nombre)} · vence ${esc(c.exp)}</span></span><button class="btn sec sm" style="margin:0" onclick="delTarj(${c.id})">🗑️ Quitar</button></div>`).join('')||'<p class="muted">Aún no tienes tarjetas. Registra una tarjeta de débito y tus pedidos se pagan con ella: el repartidor no te cobra nada al entregar.</p>'}</div>
   <div class="card" id="tjform"><h3>➕ Registrar tarjeta de débito</h3>${cardForm('t')}<button class="btn" id="tjsave" onclick="addTarj()">💳 Guardar tarjeta</button></div><button class="btn sec" onclick="go(tjBack||'perfil')">← Volver</button>`}
 };
@@ -170,11 +175,9 @@ function payCard(){const a=acct(),L=cards();
 
 async function doSignup(){const g=id=>($('#'+id).value||'').trim(),e=g('se').toLowerCase(),err=m=>{$('#serr').textContent=m;toast(m)};
  if(!g('sn'))return err('Escribe tu nombre');if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e))return err('Correo no válido');if($('#sp').value.length<8)return err('La contraseña debe tener al menos 8 caracteres');if($('#sp').value!==$('#sp2').value)return err('Las contraseñas no coinciden');
- const t=g('st').replace(/\D/g,'');if(!/^\d{10}$/.test(t))return err('El teléfono debe tener 10 dígitos');if(!g('sc'))return err('Escribe tu dirección');const A=accts();if(A[e])return err('Ya existe una cuenta con ese correo');
- const salt=[...crypto.getRandomValues(new Uint8Array(16))].map(x=>x.toString(16).padStart(2,'0')).join('');
- A[e]={email:e,nombre:g('sn'),tel:t,salt,hash:await sha(salt+':'+$('#sp').value),dirs:[{calle:g('sc'),zona:+$('#sz').value,ref:g('sr')}],creado:Date.now()};saveAccts(A);
- localStorage.setItem(SESS,JSON.stringify({type:'acct',email:e}));pre=null;toast('¡Cuenta creada!');go('home')}
-async function doLogin(){const e=$('#le').value.trim().toLowerCase(),a=accts()[e];if(a&&await sha(a.salt+':'+$('#lp').value)===a.hash){localStorage.setItem(SESS,JSON.stringify({type:'acct',email:e}));toast('¡Hola, '+a.nombre+'!');go('home')}else{$('#lerr').textContent='Correo o contraseña incorrectos';toast('Correo o contraseña incorrectos')}}
+ const t=g('st').replace(/\D/g,'');if(!/^\d{10}$/.test(t))return err('El teléfono debe tener 10 dígitos');if(!g('sc'))return err('Escribe tu dirección');try{localStorage.removeItem(SESS);if(BK.ME&&BK.ME.anon)await BK.sb.auth.signOut();await BK.signUp(e,$('#sp').value,{nombre:g('sn'),tel:t});await BK.saveProfile({nombre:g('sn'),tel:t,dirs:[{calle:g('sc'),zona:+$('#sz').value,ref:g('sr')}],tarjetas:[]})}catch(x){return err(x.message)}
+ pre=null;toast('¡Cuenta creada!');go('home')}
+async function doLogin(){const e=$('#le').value.trim().toLowerCase();let ok=false;try{localStorage.removeItem(SESS);await BK.signIn(e,$('#lp').value);ok=BK.ME&&BK.ME.role==='cliente'}catch(x){}if(ok){toast('¡Hola, '+(BK.ME.nombre||'')+'!');go('home')}else{if(BK.ME&&!BK.ME.anon&&BK.ME.role!=='cliente'){BK.signOut();toast('Esa cuenta es de '+BK.ME.role+', no de cliente')}$('#lerr').textContent='Correo o contraseña incorrectos';toast('Correo o contraseña incorrectos')}}
 function saveProf(add){const A=accts(),a=A[acct().email];a.nombre=$('#pn').value.trim()||a.nombre;const t=$('#pt').value.replace(/\D/g,'');if(t.length!==10)return toast('Teléfono de 10 dígitos');a.tel=t;
  a.dirs=a.dirs.map((d,i)=>({calle:$('#pc'+i).value.trim(),zona:+$('#pz'+i).value,ref:$('#pr'+i).value.trim()}));if(add)a.dirs.push({calle:'',zona:0,ref:''});saveAccts(A);toast(add?'Escribe la nueva dirección':'Perfil guardado');render()}
 function delDir(i){const A=accts(),a=A[acct().email];a.dirs.splice(i,1);saveAccts(A);render()}
@@ -186,7 +189,7 @@ function addV4(d){const t=Date.now(),H=36e5;d.duenos=d.duenos||['Dueño principa
  if(!d.quejas.length)d.quejas=[{id:1,ej:1,orderId:1005,tipo:'Llegó tarde',txt:'Tardó más de hora y media (ejemplo)',rep:'Juan (ejemplo)',cli:'inv:3190000001',t:t-2*H,st:'Nueva'},{id:2,ej:1,orderId:1006,tipo:'Me cobraron de más',txt:'Me cobró $150 y eran $102 (ejemplo)',rep:'Lupita (ejemplo)',cli:'inv:3190000002',t:t-H,st:'En revisión'}];
  if(!d.audit.length){d.audit.push({t:t-5*24*H,key:'rep:Lupita (ejemplo)',acc:'Advertencia',mot:'Mal trato',nota:'Sanción de ejemplo',ej:1});}}
 // ---- sanciones / directivo (compartido)
-const SANC_NOTE='<div class="warn">Versión de prueba: las sanciones solo aplican en este celular hasta conectar el servidor.</div>';
+const SANC_NOTE='';
 const MOTIVOS=['No entregó a tiempo','Cobró de más','Mal trato','Pedido falso o no pagó','Uso indebido','Otro'];
 const fdt=t=>new Date(t).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
 function sancSt(k){const x=(DB.sanc||{})[k];if(!x||x.st==='activo')return null;if(x.st==='suspendido'&&x.hasta&&Date.now()>x.hasta)return null;return x}
@@ -319,7 +322,7 @@ const D={
  mas:()=>`<h2>Bitácora y ajustes</h2>${SANC_NOTE}<div class="card"><h3>📜 Bitácora de auditoría</h3>${DB.audit.slice().reverse().map(auditRow).join('')||'<p class="muted">Vacía.</p>'}</div>
   <div class="card" id="pctcard"><h3>💸 Pago a repartidores</h3><label>Porcentaje del costo de envío que gana el repartidor</label><div class="row"><input id="xpct" type="number" inputmode="decimal" min="1" max="100" value="${repPct()}" onchange="setPct(this.value)"><b>%</b></div><div class="muted">Ejemplo: con un envío de ${mx(DB.cfg.zonas[0].f)} el repartidor gana ${mx(r2(DB.cfg.zonas[0].f*repPct()/100))}. Un cambio solo aplica a las entregas nuevas; las ya entregadas conservan su porcentaje. El dueño lo ve pero no lo puede cambiar.</div></div>
   ${mrgCfgCard()}${precCfgCard()}<div class="card"><h3>Ajustes</h3><label>Minutos para marcar un pedido como tarde</label><input id="xmin" type="number" value="${lateMin()}" onchange="DB.dirCfg.tarde=+this.value||60;save();toast('Guardado')"></div>
-  <div class="card"><h3>Dueños</h3>${DB.duenos.map(d=>`<div>${esc(d)}</div>`).join('')}<div class="muted">El panel /dueno/ de este celular corresponde a "${esc(DB.duenos[0])}".</div><input id="ndue" placeholder="Nombre" style="margin-top:6px"><button class="btn sec sm" onclick="const n=$('#ndue').value.trim();if(n){DB.duenos.push(n);save();render()}">➕ Agregar dueño</button></div>
+  <div class="card"><h3>Dueños</h3>${DB.duenos.map(d=>`<div>${esc(d)}</div>`).join('')}<div class="muted">El panel /dueno/ de este celular corresponde a "${esc(DB.duenos[0])}".</div><input id="ndue" type="email" placeholder="Correo de su cuenta (debe registrarse primero en /dueno/)" style="margin-top:6px"><button class="btn sec sm" onclick="bkAddDueno()">➕ Agregar dueño</button></div>
   <div class="card"><h3>Contraseña del directivo</h3><label>Actual</label><input id="op" type="password"><label>Nueva</label><input id="np" type="password"><button class="btn sec" onclick="ownChange()">Cambiar contraseña</button><button class="btn sec" onclick="logout()">Cerrar sesión</button></div>`
 };
 // ---- listas del panel directivo (cuadros tocables)
@@ -363,7 +366,7 @@ const A={
  <div class="card stat"><b>${mx(sum(h))}</b>Total envíos</div><div class="card stat"><b>${h.filter(o=>!o.rep).length}</b>Sin asignar</div>
  <div class="card stat"><b>${mx(sum(ef))}</b>💵 Efectivo (${ef.length})</div><div class="card stat"><b>${mx(sum(tj))}</b>💳 Tarjeta (${tj.length})</div></div>
  <div class="card"><h3>Por repartidor</h3>${DB.reps.map(r=>{const x=h.filter(o=>o.rep===r);return `<div class="row"><span>${esc(r)}</span><span>${x.length} pedidos · ${mx(sum(x))}</span></div>`}).join('')}</div>
- <button class="btn sec" onclick="if(confirm('¿Borrar todo y volver a los datos de ejemplo?')){DB=seed();save();render()}">Reiniciar datos de ejemplo</button>`},
+ `},
  todos:()=>`<h2>Todos los pedidos</h2>`+DB.orders.slice().sort((a,b)=>b.t-a.t).map(o=>card(o,`${recCard(o,1)}<label>Asignar repartidor</label><select class="f" onchange="O(${o.id}).rep=this.value;save();toast('Asignado');render()"><option value="">— Sin asignar —</option>${DB.reps.filter(r=>repOk(r)||r===o.rep).map(r=>`<option ${r===o.rep?'selected':''}>${esc(r)}</option>`).join('')}</select>${(o.chat||[]).length?`<details class="chatd" ${openCh[o.id]?'open':''} ontoggle="openCh[${o.id}]=this.open"><summary>💬 Ver chat del pedido (${o.chat.length} mensajes)</summary>${chatBox(o,null)}</details>`:'<div class="muted" style="margin-top:8px">💬 Sin mensajes en el chat.</div>'}`)).join(''),
 
  tiendas:()=>`<h2>Tiendas asociadas</h2><div class="card store row" id="crbtn2" onclick="cBack='tiendas';go('credito')"><span>🏪 <b>Crédito con tiendas</b><br><span class="muted">Saldo adeudado: ${mx(crTotal())}</span></span><span class="muted">Ver ›</span></div>${dueAlerts()}<div class="card store row" id="rvbtn" onclick="rv=null;go('revision')"><span>📝 <b>Revisión de precios</b><br><span class="muted">${DB.stores.filter(vencido).length} de ${DB.stores.length} tiendas con precios vencidos (más de ${precN()} días)</span></span><span class="muted">Ver ›</span></div>`+DB.stores.map((t,i)=>`<div class="card"><div class="row"><b>${t.cat==='farmacia'?'💊':'🏪'} ${esc(t.n)}</b><label class="sw"><input type="checkbox" ${t.act?'checked':''} onchange="DB.stores[${i}].act=+this.checked;save()"> Activa</label></div><div class="row" style="margin:6px 0"><span class="muted">${revTxt(t)}</span>${vencTag(t)}</div>
@@ -427,7 +430,7 @@ R.pedido=()=>{const o=O(oSel);if(!o||o.rep!==myRep)return R.home();const act=!do
 function afterR(){fillFotos();if(role==='repartidor'){if(rgStep==='selfie'&&RG&&!RG.selfie&&!camErr)camStart();else camStop()}document.querySelectorAll('[data-chat]').forEach(e=>{e.scrollTop=e.scrollHeight;const me=e.dataset.me,o=O(+e.dataset.chat);if(me&&o&&unread(o,me)){o.leido=o.leido||{};o.leido[me]=Date.now();save();document.querySelectorAll(`[data-badge="${o.id}"]`).forEach(b=>b.innerHTML=bdgIn(o))}})}
 // ================= REGISTRO DE REPARTIDOR (v6) =================
 function addV6(d){d.regs=d.regs||{};(d.reps||[]).filter(r=>/\(ejemplo\)/.test(r)).forEach(r=>{if(!d.regs[r])d.regs[r]={id:'ej-'+r,nombre:r,st:'aprobado',ej:1,t:Date.now()-30*864e5,rev:{t:Date.now()-30*864e5,por:'Ejemplo'}}})}
-const REGNOTE='<div class="warn">Versión de prueba: los datos y fotos solo se guardan en este celular hasta conectar el servidor.</div>';
+const REGNOTE='<div class="muted">🔒 Tus fotos se guardan cifradas en el servidor y solo las ve el dueño o el directivo.</div>';
 const regOf=n=>(DB.regs||{})[n]||null, regSt=n=>regOf(n)?.st||null, repOk=n=>regSt(n)==='aprobado';
 const regTag=n=>{const r=regOf(n);if(!r)return '<span class="tag bad">Sin registro</span>';if(r.st==='aprobado')return `<span class="tag ok">🪪 ${r.ej?'Verificado (ejemplo)':'Verificado'}</span>`;return r.st==='pendiente'?'<span class="tag ex">⏳ En revisión</span>':'<span class="tag bad">❌ Rechazado</span>'};
 // ---- fotos en IndexedDB (localStorage es muy chico para fotos)
@@ -502,6 +505,7 @@ async function submitReg(){rgCollect();if(!RG.acepta)return rgErr('Debes aceptar
  try{for(const x of ['ineF','ineR','selfie'])await fput(k(x),RG[x])}catch(e){return rgErr('No se pudieron guardar las fotos en este celular ('+e.message+')')}
  const t=Date.now(),newRep=!RG.fixed;
  DB.regs=DB.regs||{};DB.regs[n]={id,nombre:n,calle:RG.calle,num:RG.num,col:RG.col,ciudad:RG.ciudad,tel:RG.tel,curp:RG.curp,fotos:{ineF:k('ineF'),ineR:k('ineR'),selfie:k('selfie')},bio:!!(RG.cred||l?.cred),acepta:t,reglas:t,st:'pendiente',t,envios:(old?.envios||0)+1,prev:old&&old.st==='rechazado'?{motivo:old.motivo,nota:old.nota}:null};
+ try{await BK.rpc('rep_register',{p_nombre:n,p_data:DB.regs[n]});BK.ME.role='repartidor';BK.ME.nombre=n}catch(e){delete DB.regs[n];return rgErr(e.message)}
  if(!DB.reps.includes(n))DB.reps.push(n);DB.audit.push({t,key:'rep:'+n,acc:old?'Registro reenviado':'Registro enviado',mot:'',nota:'Esperando revisión'});save();
  if(newRep||!l){localStorage.setItem('rep_local',JSON.stringify({name:n,hash:await sha('pin:'+RG.pin),...(RG.cred?{cred:RG.cred}:{})}))}else if(RG.cred){l.cred=RG.cred;localStorage.setItem('rep_local',JSON.stringify(l))}
  myRep=n;camStop();rgStep=null;RG=null;toast('¡Registro enviado! Queda en revisión');if(locked())unlock();else go('home')}
@@ -768,7 +772,7 @@ A.credito=creditoView;D.credito=creditoView;A.crtienda=crTiendaView;D.crtienda=c
 // Compra y margen solo se muestran en Dueño y Directivo. La tienda solo ve su propio precio (compra). Cliente y repartidor solo ven el precio de venta.
 function addV10(d){d.dirCfg=d.dirCfg||{tarde:60};if(d.dirCfg.precDias==null)d.dirCfg.precDias=7;if(d.dirCfg.ocultarVenc==null)d.dirCfg.ocultarVenc=false;d.tReq=d.tReq||[];
  (d.stores||[]).forEach(s=>{if(s.revT===undefined){s.revT=null;s.revPor=''}if(s.tab===undefined)s.tab=null;(s.prods||[]).forEach(p=>{if(p.pc==null){p.pc=Math.round((+p.p||0)*0.85*100)/100;p.pcEst=1;p.rev=0;p.upd=null}})})}
-const TNOTE='<div class="warn">Versión de prueba: los cambios solo se guardan en este dispositivo hasta conectar el servidor.</div>';
+const TNOTE='';
 const PRNOTE='<div class="warn">Versión de prueba: los precios, revisiones y códigos de tablet solo se guardan en este celular hasta conectar el servidor.</div>';
 const precN=()=>(DB.dirCfg&&DB.dirCfg.precDias)||7;
 const revDays=s=>s.revT?Math.floor((Date.now()-s.revT)/864e5):null;
@@ -801,21 +805,20 @@ function tabCard(s){const sh=tabShow&&tabShow.sid===s.id;return `<div class="tab
  ${sh?`<div class="codebox" id="codebox">${tabShow.code}</div><div class="warn">Escribe este código en la tablet de la tienda (enlace /tienda/). Por seguridad <b>solo se muestra esta vez</b>; si se pierde, genera otro.</div><button class="btn sec sm" onclick="tabShow=null;render()">Ya lo anoté</button><br>`:''}
  <button class="btn sm" id="tabgen${s.id}" onclick="tabGen(${s.id})">🔑 ${s.tab?'Generar código nuevo':'Generar código de tablet'}</button>${s.tab&&s.tab.act?`<button class="btn sec sm" id="taboff${s.id}" onclick="tabOff(${s.id})">⛔ Desactivar</button>`:''}</div>`}
 async function tabGen(sid){const s=store(sid);if(!s)return;if(s.tab&&s.tab.act&&!confirm('¿Generar un código nuevo? El anterior deja de funcionar y la tablet tendrá que entrar con el nuevo.'))return;
- const a=new Uint32Array(1);crypto.getRandomValues(a);const code=String(a[0]%1e6).padStart(6,'0'),t=Date.now();s.tab={hash:await sha('tab:'+sid+':'+code),act:1,t,por:porQ(),last:s.tab?s.tab.last:null};
- DB.audit.push({t,key:'tienda:'+s.n,acc:'Código de tablet generado',mot:'',nota:'Por '+porQ()});tabShow={sid,code};openTab[sid]=true;save();render()}
-function tabOff(sid){const s=store(sid);if(!s||!s.tab)return;if(!confirm('¿Desactivar el código? La tablet de la tienda ya no podrá entrar.'))return;s.tab.act=0;if(tabShow&&tabShow.sid===sid)tabShow=null;DB.audit.push({t:Date.now(),key:'tienda:'+s.n,acc:'Código de tablet desactivado',mot:'',nota:'Por '+porQ()});save();toast('Código desactivado');render()}
+ let code;try{code=await BK.rpc('gen_tablet_code',{p_store:sid})}catch(e){return toast(e.message)}tabShow={sid,code};openTab[sid]=true;await BK.pull();render()}
+function tabOff(sid){const s=store(sid);if(!s||!s.tab)return;if(!confirm('¿Desactivar el código? La tablet de la tienda ya no podrá entrar.'))return;BK.rpc('tablet_off',{p_store:sid}).then(()=>{if(tabShow&&tabShow.sid===sid)tabShow=null;toast('Código desactivado');BK.pull()}).catch(e=>toast(e.message))}
 // ---- acceso de la tablet
-const tSess=()=>{try{return JSON.parse(sessionStorage.getItem('tienda_s')||'null')}catch(e){return null}};
-function tSessOk(){const x=tSess(),s=x&&store(x.id);return !!(s&&s.tab&&s.tab.act&&s.tab.hash===x.h)}
+const tSess=()=>BK.ME&&BK.ME.role==='tienda'&&BK.ME.store_id?{id:BK.ME.store_id}:null;
+function tSessOk(){const x=tSess();return !!(x&&store(x.id))}
 const myStore=()=>{const x=tSess();return x?store(x.id):null};
-const touch=s=>{if(s&&s.tab)s.tab.last=Date.now()};
+const touch=s=>{};
 function tGate(){const L=DB.stores.filter(s=>s.tab&&s.tab.act),last=+localStorage.getItem('tienda_last')||0;
  return `${L.length?`<div class="card tlogin"><h2>Tablet de la tienda</h2><p class="muted">Entra con el código que te dio Mandados Tuxpan. Cada tienda tiene el suyo.</p><label>¿Qué tienda eres?</label><select class="f" id="tsel">${L.map(s=>`<option value="${s.id}" ${s.id===last?'selected':''}>${s.cat==='farmacia'?'💊':'🏪'} ${esc(s.n)}</option>`).join('')}</select><label>Código de acceso (6 dígitos)</label><input id="tcode" type="password" inputmode="numeric" maxlength="6" autocomplete="off" onkeydown="event.key==='Enter'&&tLogin()"><button class="btn" id="tenter" onclick="tLogin()">Entrar</button></div>`:'<div class="card tlogin"><h2>Tablet de la tienda</h2><p>Todavía ninguna tienda tiene código de tablet.</p><p class="muted">El dueño lo genera en su app: Tiendas → 📲 Código de tablet.</p></div>'}${TNOTE}`}
 async function tLogin(){const f=JSON.parse(sessionStorage.getItem('tienda_fail')||'{"n":0,"u":0}');if(Date.now()<f.u)return toast('Demasiados intentos. Espera '+Math.ceil((f.u-Date.now())/1000)+' segundos');
  const id=+gv('tsel'),s=store(id),c=gv('tcode').trim();if(!/^\d{6}$/.test(c))return toast('Escribe el código de 6 dígitos');
- const h=await sha('tab:'+id+':'+c);if(!s||!s.tab||!s.tab.act||h!==s.tab.hash){f.n++;if(f.n>=5){f.u=Date.now()+60e3;f.n=0}sessionStorage.setItem('tienda_fail',JSON.stringify(f));return toast('Código incorrecto')}
- sessionStorage.removeItem('tienda_fail');sessionStorage.setItem('tienda_s',JSON.stringify({id,h}));localStorage.setItem('tienda_last',id);touch(s);DB.audit.push({t:Date.now(),key:'tienda:'+s.n,acc:'Tablet: inicio de sesión',mot:'',nota:''});save();view='prods';render()}
-function tLogout(){sessionStorage.removeItem('tienda_s');view='prods';render()}
+ $('#tenter').disabled=true;try{await BK.anon(true);const ok=await BK.rpc('redeem_tablet_code',{p_store:id,p_code:c});if(!ok){$('#tenter').disabled=false;f.n++;if(f.n>=5){f.u=Date.now()+60e3;f.n=0}sessionStorage.setItem('tienda_fail',JSON.stringify(f));return toast('Código incorrecto')}await BK.pull()}catch(e){const b=$('#tenter');if(b)b.disabled=false;return toast(e.message)}
+ sessionStorage.removeItem('tienda_fail');localStorage.setItem('tienda_last',id);view='prods';render()}
+async function tLogout(){await BK.signOut();view='prods';render()}
 const tHead=s=>`<div class="card thead"><div class="row"><b>${s.cat==='farmacia'?'💊':'🏪'} ${esc(s.n)}</b><button class="btn sec sm" style="margin:0" onclick="tLogout()">Salir</button></div><div class="muted">📍 ${esc(s.col)} · 🕒 ${esc(s.hor)}</div></div>`;
 const pendOf=(sid,pid)=>null; // v11: ya no hay cambios de precio pendientes
 const iPc=(i,s)=>i.pc!=null?i.pc:null; // pedidos anteriores a v10 no guardaron el precio de compra
@@ -1058,4 +1061,6 @@ function syncIn(){const r=localStorage.getItem('mandados');if(!r||r===lastRaw)re
 addEventListener('storage',e=>{if(e.key==='mandados')syncIn()});setInterval(syncIn,2500);
 const _r=render;render=function(){_r();calc();afterR();liveNotify()};render();
 if(role==='repartidor')bioCheck().then(()=>{if(locked()||rgStep==='acceso'||view==='home')render()});
+{const _fp=fput,_fg=fget;fput=async(k,v)=>{await _fp(k,v);BK.upPhoto(k,v).catch(e=>console.warn('foto',e))};fget=async k=>{let v=await _fg(k);if(!v){try{v=await BK.getPhoto(k);if(v)await _fp(k,v)}catch(e){}}return v}}
+BK.start();
 if('serviceWorker' in navigator)navigator.serviceWorker.register(window.APP_BASE+'sw.js',{scope:window.APP_BASE});
