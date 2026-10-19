@@ -12,7 +12,8 @@ window.BK=BK;
 BK._chk=null;
 // v26: si la sesión guardada ya no existe en el servidor (usuario borrado, sesión revocada), se limpia y se sigue como nuevo.
 BK.checkSession=()=>BK._chk||(BK._chk=(async()=>{try{const ss=(await sb.auth.getSession()).data.session;if(!ss)return;const {data,error}=await sb.auth.getUser();
-  if(error&&(error.status===401||error.status===403||error.status===404||/not.?found|does not exist|invalid|expired|session/i.test(error.message||''))||(!error&&!data.user)){console.warn('sesión inválida, se reinicia',error&&error.message);
+  // v27: solo se limpia si el servidor responde de forma definitiva que el usuario ya no existe (nunca por red caída, sin internet o token vencido)
+  if(error&&(error.code==='user_not_found'||(error.status===403&&/does not exist/i.test(error.message||'')))){console.warn('sesión inválida, se reinicia',error&&error.message);
    try{await sb.auth.signOut({scope:'local'})}catch(_){}try{Object.keys(localStorage).filter(k=>k==='mt-auth-'+R||k.startsWith('mt-auth-'+R+'-')).forEach(k=>localStorage.removeItem(k))}catch(_){}BK.ME=null;BK.stale=true}}catch(e){}})());
 BK.session=async()=>{await BK.checkSession();return (await sb.auth.getSession()).data.session};
 BK.rpc=async(fn,args,_r)=>{await BK.checkSession();const {data,error}=await sb.rpc(fn,args||{});
@@ -35,8 +36,10 @@ BK.pull=async()=>{if(pulling){again=true;return}pulling=true;
  try{const g0=BK.gen,s=await BK.session();const bs=await BK.rpc('app_bootstrap');const orders=s?await BK.rpc('get_orders'):[];
   const rl=bs&&bs.me&&bs.me.role;BK.sreq=(rl==='dueno'||rl==='directivo')?((await sb.from('store_activation_requests').select('*').order('id',{ascending:false})).data||[]):[];
   BK.myReq=(s&&R==='tienda'&&rl!=='tienda')?await BK.rpc('my_store_requests'):[];
-  if(BK.pushing||pt||g0!==BK.gen){again=true;return}apply(bs,orders);BK.ready=true;BK.err=null;commit()}
- catch(e){console.warn('pull',e);BK.err=e.message;if(!BK.ready){BK.ready=true;try{render()}catch(_){}}}
+  if(BK.pushing||pt||g0!==BK.gen){again=true;return}apply(bs,orders);BK.ready=true;BK.err=null;BK.fails=0;
+  try{if(s&&bs&&bs.me)localStorage.setItem('mt-me-'+R,JSON.stringify({uid:s.user.id,me:bs.me}));else localStorage.removeItem('mt-me-'+R)}catch(_){}commit()}
+ catch(e){console.warn('pull',e);BK.err=e.message;BK.fails=(BK.fails||0)+1;clearTimeout(BK._rt);BK._rt=setTimeout(BK.pull,Math.min(30000,2000*BK.fails)); // reintento rápido (p. ej. el celular aún no tiene internet al abrir)
+  if(!BK.ready){BK.ready=true;try{render()}catch(_){}}}
  finally{pulling=false;if(again){again=false;setTimeout(BK.pull,300)}}};
 BK.pullOrders=async()=>{if(BK.pushing||pt)return BK.soon();try{const g0=BK.gen;if(!(await BK.session()))return;const o=await BK.rpc('get_orders');if(BK.pushing||pt||g0!==BK.gen)return BK.soon();apply(null,o);commit()}catch(e){console.warn(e)}};
 BK.soon=()=>{clearTimeout(BK._s);BK._s=setTimeout(BK.pullOrders,500)};
@@ -89,7 +92,10 @@ BK.getPhoto=async k=>{if(bucketOf(k)==='product-photos'){const u=BK.prodUrl(k);t
 // ---- tiempo real + respaldo cada 30 s
 BK.live=async()=>{if(BK.ch){sb.removeChannel(BK.ch);BK.ch=null}if(!(await BK.session()))return;
  BK.ch=sb.channel('mt-'+R+'-'+Math.random().toString(36).slice(2)).on('postgres_changes',{event:'*',schema:'public',table:'orders'},BK.soon).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},BK.soon).on('postgres_changes',{event:'INSERT',schema:'public',table:'order_events'},BK.soon).on('postgres_changes',{event:'*',schema:'public',table:'store_activation_requests'},()=>{clearTimeout(BK._q);BK._q=setTimeout(BK.pull,500)}).subscribe()};
-BK.start=()=>{sb.auth.onAuthStateChange((ev,s)=>{if(ev==='SIGNED_IN'||ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED'){if(s)sb.realtime.setAuth(s.access_token);setTimeout(BK.live,0)}});BK.pull().then(BK.live);setInterval(()=>{if(!document.hidden)BK.pull()},30000);
+// v27: al abrir, se usa la última identidad conocida de ESTA sesión guardada (sin esperar al servidor ni a internet); el servidor la confirma o la revoca en cuanto responde.
+BK.restore=()=>{try{const c=JSON.parse(localStorage.getItem('mt-me-'+R)||'null'),a=JSON.parse(localStorage.getItem('mt-auth-'+R)||'null');const uid=a&&(a.user&&a.user.id||(a.currentSession&&a.currentSession.user&&a.currentSession.user.id));
+ if(c&&uid&&c.uid===uid&&c.me&&!BK.ME){BK.ME=c.me;BK.boot=BK.boot||{me:c.me};BK.ready=true;return true}}catch(e){}return false};
+BK.start=()=>{if(BK.restore()){try{render()}catch(_){}}window.addEventListener('online',()=>BK.pull());sb.auth.onAuthStateChange((ev,s)=>{if(ev==='SIGNED_IN'||ev==='SIGNED_OUT'||ev==='TOKEN_REFRESHED'){if(s)sb.realtime.setAuth(s.access_token);setTimeout(BK.live,0)}});BK.pull().then(BK.live);setInterval(()=>{if(!document.hidden)BK.pull()},30000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)BK.pull()})};
 })();
 // ---- pantallas de acceso con cuenta (dueño, directivo, repartidor)
