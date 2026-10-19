@@ -33,3 +33,5 @@ Ojo: límite de 5 pedidos/10 min por cliente y 15 códigos incorrectos/hora por 
 - `store_states.mjs` (desde /workspace/t, `S1= S2= S3=` tiendas de prueba): desactivar/eliminar/restaurar/reactivar, permisos, RLS, catálogo del cliente, lista de tablets, sesión de tablet, auditoría.
 - `store_states_ui.py`: pestañas Activas/Inactivas/Eliminadas/Buscar en dueño (390x844) y directivo (tablet).
 - `store_accordion_ui.py` (v30): cortina de tiendas, una abierta a la vez, recuerda la abierta; dueño 390x844 y directivo tablet.
+- `sanctions.mjs` (v31, desde /workspace/t, SID= PID=): sanciones solo directivo por RPC, dueño las ve, cliente suspendido no pide, repartidor dado de baja no comparte ubicación ni toma pedidos, revisión de registros por RPC, auditoría y tiempo real.
+- `sanctions_ui.py` (v31): Directivo da de baja → Dueño lo ve en otra sesión sin recargar.
