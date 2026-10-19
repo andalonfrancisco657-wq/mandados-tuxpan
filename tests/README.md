@@ -28,3 +28,7 @@ Ojo: límite de 5 pedidos/10 min por cliente y 15 códigos incorrectos/hora por 
 ## v28 · Contraseña de la tienda
 - `store_password.mjs` (desde /workspace/t, `A=<tienda prueba> B=<tienda prueba>`): crear contraseña, entrar, contraseña de otra tienda, bloqueo tras 5 intentos (por tienda+sesión), código nuevo no saca sesiones con contraseña, cambiar requiere la actual, Salir y volver a entrar, cerrar sesiones, bloquear, restablecer, recuperación por código.
 - `store_password_ui.py` (`MT_TEST_STORE=<tienda prueba>`): flujo en pantalla tienda + controles del dueño.
+
+## v29 · Estados de tienda
+- `store_states.mjs` (desde /workspace/t, `S1= S2= S3=` tiendas de prueba): desactivar/eliminar/restaurar/reactivar, permisos, RLS, catálogo del cliente, lista de tablets, sesión de tablet, auditoría.
+- `store_states_ui.py`: pestañas Activas/Inactivas/Eliminadas/Buscar en dueño (390x844) y directivo (tablet).
