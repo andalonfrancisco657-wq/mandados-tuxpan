@@ -37,3 +37,4 @@ Ojo: límite de 5 pedidos/10 min por cliente y 15 códigos incorrectos/hora por 
 - `sanctions_ui.py` (v31): Directivo da de baja → Dueño lo ve en otra sesión sin recargar.
 - `vehicle_license.mjs` (v32, desde /workspace/t, SID= PID=; pausa en EXPIRE_NOW para vencer la licencia de prueba por SQL): validación, privacidad de fotos, bloqueo por licencia vencida, renovación y revisión.
 - `vehicle_license_ui.py` (v32): paso de vehículo en el registro, revisión del dueño, aviso de vencimiento, repartidor existente.
+- `orders_filter_ui.py` (v33, IDS=act,ent,pro,rev,can): selector de Pedidos del dueño, orden, badge por revisar, tiempo real, memoria y vacío.
